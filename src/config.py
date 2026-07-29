@@ -35,7 +35,7 @@ class Config:
         if len(ids) != len(set(ids)):
             raise ValueError("Co node bi trung 'id'")
 
-    # --- Truy cập nhanh ---
+    # --- Truy cập nhanh (kèm giá trị mặc định an toàn) ---
     @property
     def gateway_id(self) -> str:
         return self.gateway["gateway"]["id"]
@@ -45,12 +45,28 @@ class Config:
         return self.gateway["local_broker"]
 
     @property
-    def storage(self) -> Dict[str, Any]:
-        return self.gateway["storage"]
+    def cloud(self) -> Dict[str, Any]:
+        return self.gateway.get("cloud", {})
 
     @property
-    def cloud(self) -> Dict[str, Any]:
-        return self.gateway["cloud"]
+    def storage(self) -> Dict[str, Any]:
+        return self.gateway.get("storage", {})
+
+    @property
+    def pipeline(self) -> Dict[str, Any]:
+        return self.gateway.get("pipeline", {})
+
+    @property
+    def store_forward(self) -> Dict[str, Any]:
+        return self.gateway.get("store_forward", {})
+
+    @property
+    def network_monitor(self) -> Dict[str, Any]:
+        return self.gateway.get("network_monitor", {})
+
+    @property
+    def maintenance(self) -> Dict[str, Any]:
+        return self.gateway.get("maintenance", {})
 
     @property
     def logging_cfg(self) -> Dict[str, Any]:

@@ -10,7 +10,7 @@ User=pi
 WorkingDirectory=/opt/iot-gateway
 ExecStart=/opt/iot-gateway/.venv/bin/python -m src.main
 Restart=always
-RestartSec=5
+RestartSec=10
 # Ghi log ra journald: xem bang `journalctl -u iot-gateway -f`
 StandardOutput=journal
 StandardError=journal

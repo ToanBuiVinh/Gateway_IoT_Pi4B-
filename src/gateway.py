@@ -1,15 +1,22 @@
-"""Bộ điều phối chính: nối nguồn MQTT -> node manager -> storage -> forwarder."""
+"""Orchestrator asyncio: khởi tạo hạ tầng và chạy tất cả worker song song."""
 from __future__ import annotations
 
+import asyncio
 import logging
-import threading
-import time
 
+from .cloud_publisher import CloudPublisher
 from .config import Config
-from .forwarder import Forwarder
-from .mqtt_source import LocalMqttSource
+from .db import Database
+from .mqtt_local import LocalMqttClient
+from .network_monitor import network_monitor_worker
 from .node_manager import NodeManager
-from .storage import Storage
+from .state import AppState
+from .workers import (
+    database_worker,
+    disk_cleanup_worker,
+    ingestion_worker,
+    store_and_forward_worker,
+)
 
 log = logging.getLogger("gateway")
 
@@ -17,49 +24,85 @@ log = logging.getLogger("gateway")
 class Gateway:
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.storage = Storage(
-            config.storage["path"],
-            int(config.storage.get("max_buffer_rows", 100_000)),
+        self.state = AppState()
+        self.db = Database(
+            config.storage.get("path", "data/gateway.db"),
+            int(config.storage.get("max_buffer_rows", 200_000)),
         )
         self.nodes = NodeManager(
             gateway_id=config.gateway_id,
             node_defs=config.enabled_nodes(),
             offline_after=int(config.logging_cfg.get("node_offline_after_sec", 120)),
         )
-        self.forwarder = Forwarder(config.cloud, self.storage)
-        self.source = LocalMqttSource(config.local_broker, self._on_message)
-        self._stop = threading.Event()
+        # Hàng đợi trên RAM
+        qmax = int(config.pipeline.get("ingest_queue_max", 10000))
+        self.ingest_queue: asyncio.Queue = asyncio.Queue(maxsize=qmax)
+        self.db_queue: asyncio.Queue = asyncio.Queue()
+        # Được gán trong run() khi đã có event loop
+        self.local: LocalMqttClient | None = None
+        self.publisher: CloudPublisher | None = None
 
-    def _on_message(self, node_id: str, payload: bytes) -> None:
-        reading = self.nodes.handle_payload(node_id, payload)
-        if reading is not None:
-            self.storage.save(reading)
-            log.debug("Luu reading tu %s: %s", node_id, reading.metrics)
+    async def run(self) -> None:
+        loop = asyncio.get_running_loop()
+        log.info("=== Khoi dong Gateway %s (%d node) ===",
+                 self.config.gateway_id, len(self.config.enabled_nodes()))
 
-    def run(self) -> None:
-        log.info("=== Khoi dong Gateway %s ===", self.config.gateway_id)
-        log.info("Theo doi %d node", len(self.config.enabled_nodes()))
-        self.forwarder.start()
-        self.source.start()
+        # Hai MQTT client (§1)
+        self.publisher = CloudPublisher(self.config.cloud, loop, self.state)
+        self.local = LocalMqttClient(self.config.local_broker, loop, self.ingest_queue)
+        self.publisher.start()
+        self.local.start()
+
+        # Các worker chạy song song
+        tasks = [
+            asyncio.create_task(ingestion_worker(
+                self.state, self.ingest_queue, self.db_queue,
+                self.publisher, self.nodes), name="ingestion"),
+            asyncio.create_task(database_worker(
+                self.config.pipeline, self.db, self.db_queue, self.state),
+                name="database"),
+            asyncio.create_task(store_and_forward_worker(
+                self.config.store_forward, self.db, self.publisher, self.state),
+                name="store-forward"),
+            asyncio.create_task(network_monitor_worker(
+                self.config.network_monitor, self.config.cloud, self.state),
+                name="netmon"),
+            asyncio.create_task(disk_cleanup_worker(
+                self.config.maintenance, self.db), name="disk-cleanup"),
+            asyncio.create_task(self._heartbeat(), name="heartbeat"),
+        ]
         try:
-            while not self._stop.is_set():
-                self._stop.wait(30)
-                self.nodes.refresh_offline()
-                online = sum(1 for s in self.nodes.snapshot() if s["online"])
-                log.info(
-                    "Nhip: %d/%d node online | %d ban ghi cho day cloud",
-                    online, len(self.config.enabled_nodes()),
-                    self.storage.pending_count(),
-                )
+            await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            log.info("Nhan lenh dung, huy cac worker...")
         finally:
+            for t in tasks:
+                t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             self.shutdown()
 
-    def stop(self) -> None:
-        self._stop.set()
+    async def _heartbeat(self) -> None:
+        """Định kỳ log tình trạng: online, số node, thống kê pipeline."""
+        while True:
+            await asyncio.sleep(30)
+            self.nodes.refresh_offline()
+            online = sum(1 for s in self.nodes.snapshot() if s["online"])
+            st = self.state.stats
+            pending = await asyncio.to_thread(self.db.pending_count)
+            log.info(
+                "Nhip | cloud=%s | node online=%d/%d | nhan=%d thang=%d buffer=%d "
+                "gui_bu=%d loai=%d | cho gui=%d",
+                "ON" if self.state.is_online else "OFF",
+                online, len(self.config.enabled_nodes()),
+                st.received, st.published_direct, st.buffered,
+                st.forwarded, st.dropped, pending,
+            )
 
     def shutdown(self) -> None:
         log.info("Dang tat gateway...")
-        self.source.stop()
-        self.forwarder.stop()
-        self.storage.close()
+        if self.local:
+            self.local.stop()
+        if self.publisher:
+            self.publisher.stop()
+        self.db.close()
         log.info("Da tat gateway.")

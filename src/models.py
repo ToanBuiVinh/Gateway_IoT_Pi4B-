@@ -13,25 +13,28 @@ class Reading:
 
     node_id: str
     gateway_id: str
-    metrics: Dict[str, Any]           # {"temperature": 25.4, "humidity": 60}
-    ts: float = field(default_factory=time.time)  # epoch giây (UTC)
+    metrics: Dict[str, Any]                         # {"temperature": 25.4, ...}
+    ts: float = field(default_factory=time.time)    # epoch giây (UTC)
 
-    def to_json(self) -> str:
-        return json.dumps(asdict(self), ensure_ascii=False, separators=(",", ":"))
+    def to_cloud_dict(self, buffered: bool = False) -> Dict[str, Any]:
+        """Dạng dict để publish lên cloud.
 
-    def to_json_metrics(self) -> str:
-        """Chỉ serialize phần metrics (để lưu vào cột riêng trong DB)."""
-        return json.dumps(self.metrics, ensure_ascii=False, separators=(",", ":"))
+        buffered=True gắn cờ để cloud biết đây là dữ liệu lịch sử gửi bù.
+        """
+        d: Dict[str, Any] = {
+            "node_id": self.node_id,
+            "gateway_id": self.gateway_id,
+            "ts": self.ts,
+            "metrics": self.metrics,
+        }
+        if buffered:
+            d["buffered"] = True
+        return d
 
-    @staticmethod
-    def from_row(row: tuple) -> "Reading":
-        # row = (id, node_id, gateway_id, ts, metrics_json, sent)
-        return Reading(
-            node_id=row[1],
-            gateway_id=row[2],
-            ts=row[3],
-            metrics=json.loads(row[4]),
-        )
+    def payload_json(self) -> str:
+        """JSON gốc (chưa gắn cờ buffered) để lưu vào SQLite."""
+        return json.dumps(self.to_cloud_dict(False), ensure_ascii=False,
+                          separators=(",", ":"))
 
 
 @dataclass

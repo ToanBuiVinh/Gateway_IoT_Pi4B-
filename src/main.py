@@ -1,11 +1,11 @@
-"""Điểm khởi chạy gateway.
+"""Điểm khởi chạy gateway (asyncio).
 
 Chạy:  python -m src.main
-Hoặc:  python src/main.py
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import os
 import signal
@@ -32,6 +32,29 @@ def setup_logging(cfg: dict) -> None:
     )
 
 
+async def _run(config: Config) -> None:
+    gw = Gateway(config)
+    loop = asyncio.get_running_loop()
+    main_task = asyncio.current_task()
+
+    # Bắt SIGINT/SIGTERM để dừng gọn gàng (systemd gửi SIGTERM khi stop/restart).
+    def _stop() -> None:
+        logging.getLogger("gateway").info("Nhan tin hieu dung")
+        if main_task:
+            main_task.cancel()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, _stop)
+        except NotImplementedError:
+            pass  # một số nền tảng (Windows) không hỗ trợ
+
+    try:
+        await gw.run()
+    except asyncio.CancelledError:
+        pass
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="IoT Gateway cho Raspberry Pi 4B")
     parser.add_argument("--gateway", default="config/gateway.yaml")
@@ -41,16 +64,10 @@ def main() -> int:
     config = Config(args.gateway, args.nodes)
     setup_logging(config.logging_cfg)
 
-    gw = Gateway(config)
-
-    def handle_signal(signum, frame):  # noqa: ANN001
-        logging.getLogger("gateway").info("Nhan tin hieu %s -> dung", signum)
-        gw.stop()
-
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
-
-    gw.run()
+    try:
+        asyncio.run(_run(config))
+    except KeyboardInterrupt:
+        pass
     return 0
 
 

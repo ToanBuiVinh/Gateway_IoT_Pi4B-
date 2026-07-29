@@ -151,45 +151,35 @@ File mẫu: [`firmware/esp32_node/esp32_node.ino`](../firmware/esp32_node/esp32_
 
 ## 8. Kết nối Cloud — `config/gateway.yaml`
 
-Chọn một trong ba chế độ ở mục `cloud.mode`:
+Gateway đẩy dữ liệu lên **Cloud MQTT Broker qua TLS** (QoS 1, chờ PUBACK). Phù hợp:
+**AWS IoT Core, HiveMQ Cloud, EMQX Cloud, ThingsBoard MQTT...**
 
-### a) `none` — chỉ chạy cục bộ (mặc định để test)
-Dữ liệu vẫn được nhận và lưu SQLite, không gửi đi đâu.
-
-### b) `http` — POST JSON lên REST endpoint
-Phù hợp: **ThingsBoard, Ubidots**, hoặc server riêng.
 ```yaml
 cloud:
-  mode: "http"
-  http:
-    url: "https://your-cloud.example.com/api/v1/telemetry"
-    method: "POST"
-    headers:
-      Content-Type: "application/json"
-      Authorization: "Bearer TOKEN_CUA_BAN"
+  enabled: true                 # false => chạy cục bộ, mọi dữ liệu buffer vào SQLite
+  host: "your-cloud-broker.example.com"
+  port: 8883
+  tls: true                     # bật TLS/SSL
+  ca_cert: ""                   # (tuỳ chọn) đường dẫn CA cert; trống = CA hệ thống
+  username: "cloud_user"
+  password: "cloud_pass"
+  publish_topic: "tenant/gw-pi4b-01/telemetry"
+  qos: 1                        # QoS 1 -> có PUBACK xác nhận
+  puback_timeout_sec: 10
 ```
-Gateway gửi mảng JSON các bản ghi:
+
+Payload gửi lên (dữ liệu realtime):
 ```json
-[{"node_id":"node-01","gateway_id":"gw-pi4b-01","ts":1722240000.0,
-  "metrics":{"temperature":25.4,"humidity":61.0}}]
+{"node_id":"node-01","gateway_id":"gw-pi4b-01","ts":1722240000.0,
+ "metrics":{"temperature":25.4,"humidity":61.0}}
 ```
+Dữ liệu gửi bù sau khi mất mạng sẽ có thêm cờ `"buffered": true` để cloud phân biệt.
 
-### c) `mqtt` — publish sang broker cloud (TLS)
-Phù hợp: **AWS IoT Core, HiveMQ Cloud, EMQX Cloud**.
-```yaml
-cloud:
-  mode: "mqtt"
-  mqtt:
-    host: "your-broker.example.com"
-    port: 8883
-    tls: true
-    username: "cloud_user"
-    password: "cloud_pass"
-    publish_topic: "tenant/gw-pi4b-01/telemetry"
-```
-
-> **Mất mạng cloud không sao:** dữ liệu nằm trong SQLite (`data/gateway.db`),
-> forwarder tự thử lại với backoff và đẩy hết khi có mạng trở lại.
+> **Chỉ muốn test cục bộ?** Đặt `cloud.enabled: false` — mọi dữ liệu sẽ được nhận và
+> lưu vào SQLite (`data/gateway.db`), không gửi đi đâu.
+>
+> **Mất mạng cloud không sao:** dữ liệu nằm trong SQLite (WAL), **Store-and-Forward
+> Worker** tự đẩy bù theo FIFO với exponential backoff khi có mạng trở lại.
 
 ---
 
@@ -217,8 +207,10 @@ Gateway sẽ tự khởi động cùng Pi và tự chạy lại nếu bị crash
 | Gateway báo "node LẠ" | `NODE_ID` trên firmware không khớp `id` trong `nodes.yaml`. |
 | Metric bị loại bỏ | Giá trị ngoài `[min,max]`, hoặc sai kiểu (không phải số). Kiểm tra lại `nodes.yaml`. |
 | Node hiện OFFLINE | Quá `node_offline_after_sec` không có bản tin. Kiểm tra node/WiFi. |
-| Không đẩy được cloud | Sai URL/token/chứng chỉ. Xem log `gateway.forwarder`. Dữ liệu vẫn được giữ để gửi lại. |
+| Không đẩy được cloud | Sai host/port/chứng chỉ TLS. Xem log `gateway.cloud` và `gateway.netmon`. Dữ liệu vẫn được buffer để gửi bù. |
+| Buffer đầy dần | Cloud liên tục lỗi. Kiểm tra kết nối; disk-cleanup tự dọn khi đĩa >85%. |
 | Kiểm tra broker | `mosquitto_sub -t 'iot/nodes/#' -v` để xem node có gửi về không. |
+| Kiểm tra pipeline nhanh | `python scripts/test_pipeline.py` (không cần broker/phần cứng). |
 
 ---
 

@@ -1,30 +1,39 @@
 # Gateway IoT cho Raspberry Pi 4B — 10 nodes
 
-Gateway IoT chạy trên **Raspberry Pi 4B**, thu thập dữ liệu từ **10 node khác nhau**
-qua **MQTT**, lưu đệm cục bộ (SQLite) và đẩy lên **Cloud** (HTTP hoặc MQTT) có
-retry khi mất mạng.
+Gateway IoT chạy trên **Raspberry Pi 4B**, kiến trúc **asyncio event-driven**,
+thu thập dữ liệu từ **10 node khác nhau** qua **MQTT**, lưu đệm cục bộ
+(SQLite + WAL) và đẩy lên **Cloud MQTT (TLS)** theo cơ chế **store-and-forward**
+có retry khi mất mạng.
 
 ```
-  [10 Node ESP32 / cảm biến]                 [Raspberry Pi 4B]                 [Cloud]
-  node-01 ──┐                        ┌───────────────────────────────┐
-  node-02 ──┤   WiFi / MQTT          │  Mosquitto broker (1883)       │      HTTP REST
-   ...      ├──────────────────────► │       │                        │  ──►  hoặc
-  node-10 ──┘   iot/nodes/<id>       │  Gateway (Python):             │       MQTT/TLS
-                                     │   • giải mã & kiểm tra dữ liệu │
-                                     │   • theo dõi trạng thái node   │
-                                     │   • SQLite (store-and-forward) │
-                                     │   • forwarder đẩy cloud + retry│
-                                     └───────────────────────────────┘
+                 ┌──────────────────── Raspberry Pi 4B ────────────────────┐
+  10 Nodes ─MQTT─┼─► Local MQTT Client ─► ingest_queue ─► Ingestion Worker  │
+  (ESP32)        │                                            │             │
+                 │                       online? ──yes──► Cloud MQTT ─TLS─► ☁ Cloud
+                 │                          └──no/fail──► db_queue ─► Database Worker
+                 │                                           │  (batch 10–20/3s)
+                 │                                           ▼                │
+                 │                              SQLite (WAL)  telemetry_buffer│
+                 │       Store-and-Forward Worker ◄── online? ──► +buffered ─►☁
+                 │       Network Monitor (5s) · Disk Cleanup (>85%)           │
+                 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Tính năng
-- Quản lý tập trung **10 node** qua file `config/nodes.yaml` (bật/tắt, gắn đơn vị,
-  kiểm tra khoảng giá trị hợp lệ cho từng metric).
-- **Store-and-forward**: mất mạng cloud vẫn giữ dữ liệu trong SQLite, tự đẩy lại.
-- Theo dõi **online/offline** từng node, đếm số bản tin & lỗi.
-- Đẩy cloud linh hoạt: `http`, `mqtt`, hoặc `none` (chạy cục bộ để test).
-- Chạy nền bằng **systemd**, tự khởi động cùng Pi.
-- Có **bộ giả lập 10 node** để test ngay cả khi chưa có phần cứng.
+- Kiến trúc **bất đồng bộ (asyncio)**: hàng đợi RAM + các worker chuyên trách,
+  I/O chặn đẩy sang thread phụ để không nghẽn event loop.
+- **Hai MQTT client**: Local (nhận từ 10 node) + Cloud (TLS, publish QoS1 chờ PUBACK).
+- **Store-and-forward**: mất mạng vẫn giữ dữ liệu trong SQLite (WAL), khi có mạng
+  lại tự đẩy bù theo **FIFO**, gắn cờ `buffered:true`, có **throttle 50ms** và
+  **exponential backoff (2→300s)**.
+- **Batching ghi đĩa** (10–20 tin hoặc 3s / 1 transaction) để bảo vệ thẻ SD.
+- Quản lý tập trung **10 node** qua `config/nodes.yaml` (bật/tắt, đơn vị, kiểm tra
+  khoảng giá trị hợp lệ). Theo dõi **online/offline** từng node.
+- **Dọn đĩa tự động** khi vượt 85%; chạy nền bằng **systemd** (tự restart sau 10s).
+- Có **bộ giả lập 10 node** và **test pipeline** để chạy thử không cần phần cứng.
+
+> 📐 Phân tích kiến trúc & logic xử lý chi tiết (ánh xạ đặc tả → code):
+> [`docs/LUONG_XU_LY.md`](docs/LUONG_XU_LY.md)
 
 ## Bắt đầu nhanh (trên Raspberry Pi 4B)
 ```bash
@@ -36,24 +45,35 @@ bash scripts/install.sh
 source .venv/bin/activate
 
 # 3) Sửa cấu hình cloud trong config/gateway.yaml
-#    (để cloud.mode = "none" nếu chỉ muốn test cục bộ)
+#    (để cloud.enabled = false nếu chỉ muốn test cục bộ -> dữ liệu buffer vào SQLite)
 
 # 4) Chạy gateway
 python -m src.main
 
 # 5) Mở terminal khác, chạy giả lập 10 node để thấy dữ liệu chảy về
 python scripts/simulate_nodes.py
+
+# (tuỳ chọn) chạy test pipeline, không cần broker/phần cứng
+python scripts/test_pipeline.py
 ```
 
 ## Cấu trúc dự án
 ```
-config/gateway.yaml      # cấu hình gateway, broker, cloud, logging
+config/gateway.yaml      # cấu hình gateway, broker, cloud, pipeline, bảo trì
 config/nodes.yaml        # định nghĩa 10 node
-src/                     # mã nguồn gateway (Python)
+src/                     # mã nguồn gateway (asyncio)
+  ├─ mqtt_local.py       # Local MQTT Client -> asyncio.Queue
+  ├─ cloud_publisher.py  # Cloud MQTT Client (TLS, PUBACK)
+  ├─ db.py               # SQLite + WAL, telemetry_buffer
+  ├─ workers.py          # ingestion / database / store-forward / disk-cleanup
+  ├─ network_monitor.py  # giám sát kết nối 5s
+  ├─ state.py            # cờ online + thống kê
+  └─ gateway.py, main.py # orchestrator + entrypoint
 firmware/esp32_node/     # firmware Arduino mẫu cho node ESP32
-scripts/                 # cài đặt, cấu hình broker, giả lập node
-systemd/                 # service chạy nền
-docs/HUONG_DAN.md        # HƯỚNG DẪN CHI TIẾT (đọc file này)
+scripts/                 # cài đặt, cấu hình broker, giả lập node, test pipeline
+systemd/                 # service chạy nền (restart 10s)
+docs/HUONG_DAN.md        # HƯỚNG DẪN CHI TIẾT (cài đặt, phần cứng, cloud)
+docs/LUONG_XU_LY.md      # phân tích kiến trúc & logic xử lý (đặc tả -> code)
 ```
 
 👉 **Xem hướng dẫn đầy đủ (phần cứng, đấu nối, cloud, khắc phục lỗi) tại
