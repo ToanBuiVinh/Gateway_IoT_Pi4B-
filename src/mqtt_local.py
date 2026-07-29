@@ -20,13 +20,16 @@ IngestItem = tuple
 
 class LocalMqttClient:
     def __init__(self, cfg: Dict[str, Any], loop: asyncio.AbstractEventLoop,
-                 queue: "asyncio.Queue[IngestItem]") -> None:
+                 queue: "asyncio.Queue[IngestItem]",
+                 ack_queue: "asyncio.Queue | None" = None) -> None:
         self.cfg = cfg
         self._loop = loop
         self._queue = queue
+        self._ack_queue = ack_queue
         self.base_topic = cfg.get("base_topic", "iot/nodes").rstrip("/")
         self.command_topic = cfg.get("command_topic", "iot/cmd").rstrip("/")
         self.command_qos = int(cfg.get("command_qos", 1))
+        self.ack_topic = cfg.get("ack_topic", "iot/ack").rstrip("/")
         self._client = mqtt.Client(client_id="pi4b-gateway-local")
         if cfg.get("username"):
             self._client.username_pw_set(cfg["username"], cfg.get("password", ""))
@@ -58,9 +61,11 @@ class LocalMqttClient:
     # --- callbacks (chạy trong thread paho) ---
     def _on_connect(self, client, userdata, flags, rc):  # noqa: ANN001
         if rc == 0:
-            topic = f"{self.base_topic}/+"
-            client.subscribe(topic, qos=1)
-            log.info("Da subscribe local: %s", topic)
+            client.subscribe(f"{self.base_topic}/+", qos=1)     # uplink telemetry
+            log.info("Da subscribe local telemetry: %s/+", self.base_topic)
+            if self._ack_queue is not None:
+                client.subscribe(f"{self.ack_topic}/+", qos=1)  # ack từ node
+                log.info("Da subscribe local ack: %s/+", self.ack_topic)
         else:
             log.error("Local broker connect that bai rc=%s", rc)
 
@@ -70,12 +75,21 @@ class LocalMqttClient:
 
     def _on_message(self, client, userdata, msg):  # noqa: ANN001
         node_id = msg.topic.split("/")[-1]
-        item = (node_id, msg.payload, time.time())
-        # Bắc cầu an toàn sang event loop asyncio.
-        self._loop.call_soon_threadsafe(self._enqueue, item)
+        # Phân loại theo tiền tố topic: ack hay telemetry.
+        if self._ack_queue is not None and msg.topic.startswith(self.ack_topic + "/"):
+            self._loop.call_soon_threadsafe(self._enqueue_ack, (node_id, msg.payload))
+        else:
+            item = (node_id, msg.payload, time.time())
+            self._loop.call_soon_threadsafe(self._enqueue, item)
 
     def _enqueue(self, item: IngestItem) -> None:
         try:
             self._queue.put_nowait(item)
         except asyncio.QueueFull:
             log.error("Ingest queue DAY -> bo tin tu %s", item[0])
+
+    def _enqueue_ack(self, item) -> None:  # noqa: ANN001
+        try:
+            self._ack_queue.put_nowait(item)
+        except asyncio.QueueFull:
+            log.error("Ack queue DAY -> bo ack tu %s", item[0])

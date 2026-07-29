@@ -209,7 +209,46 @@ async def command_worker(
 
 
 # ======================================================================
-# 5) DISK CLEANUP WORKER: dọn đĩa khi vượt ngưỡng
+# 5) ACK WORKER: relay phản hồi (command/ack) từ node lên cloud
+# ======================================================================
+async def ack_worker(
+    ack_queue: "asyncio.Queue",
+    publisher: "CloudPublisher",
+    nodes: NodeManager,
+    gateway_id: str,
+    state: AppState,
+) -> None:
+    log.info("Ack worker: san sang relay phan hoi len cloud")
+    while True:
+        node_id, payload = await ack_queue.get()
+        try:
+            if not nodes.known(node_id):
+                state.stats.acks_dropped += 1
+                log.warning("Ack tu node LA: %s -> bo qua", node_id)
+                continue
+            try:
+                data = json.loads(payload.decode("utf-8"))
+            except (ValueError, UnicodeDecodeError):
+                state.stats.acks_dropped += 1
+                log.warning("Ack tu %s khong phai JSON hop le -> bo qua", node_id)
+                continue
+            # Bổ sung ngữ cảnh gateway để cloud truy vết.
+            data.setdefault("node_id", node_id)
+            data.setdefault("gateway_id", gateway_id)
+            # Ack là realtime (best-effort): chỉ gửi khi cloud online.
+            ok = await publisher.publish_ack(node_id, data)
+            if ok:
+                state.stats.acks_relayed += 1
+                log.info("Relay ack <- node %s (cmd_id=%s)", node_id, data.get("cmd_id"))
+            else:
+                state.stats.acks_dropped += 1
+                log.warning("Khong relay duoc ack tu %s (cloud offline?)", node_id)
+        finally:
+            ack_queue.task_done()
+
+
+# ======================================================================
+# 6) DISK CLEANUP WORKER: dọn đĩa khi vượt ngưỡng
 # ======================================================================
 async def disk_cleanup_worker(cfg: Dict[str, Any], db: Database) -> None:
     interval = float(cfg.get("disk_check_interval_sec", 300))

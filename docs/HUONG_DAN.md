@@ -242,12 +242,32 @@ gửi, reboot, hiệu chỉnh cảm biến...) ngay trong hàm này.
 
 **Thử nhanh trên Pi** (không cần cloud, publish thẳng vào broker cục bộ):
 ```bash
-mosquitto_pub -t 'iot/cmd/node-06' -m '{"cmd":"relay","state":1}'
+# Lắng nghe phản hồi ack từ node
+mosquitto_sub -t 'iot/ack/#' -v
+# Gửi lệnh (kèm cmd_id để khớp phản hồi)
+mosquitto_pub -t 'iot/cmd/node-06' -m '{"cmd_id":"abc123","cmd":"relay","state":1}'
 ```
 
-> ⚠️ Lệnh là **realtime, không được buffer**. Nếu cloud mất kết nối, lệnh sẽ không tới
-> gateway (khác telemetry vốn có store-and-forward). Để chắc chắn, cho node **phản hồi
-> trạng thái** qua uplink để cloud xác nhận (command/ack).
+### Command/ack — xác nhận thực thi
+
+Để biết lệnh đã tới và **kết quả** ra sao, dùng cơ chế command/ack:
+1. Cloud gửi lệnh kèm `cmd_id`: `{"cmd_id":"abc123","cmd":"relay","state":1}`.
+2. Node thực thi rồi publish ack lên `iot/ack/<node_id>`:
+   `{"cmd_id":"abc123","node_id":"node-06","status":"ok","detail":"relay=on"}`.
+3. Gateway subscribe `iot/ack/+`, **relay ack lên cloud** tại `<cloud.ack_topic>/<node_id>`
+   (bổ sung `gateway_id`). Cloud khớp `cmd_id` để xác nhận.
+
+Cấu hình topic ack (`config/gateway.yaml`):
+```yaml
+cloud:
+  ack_topic: "tenant/gw-pi4b-01/ack"   # gateway publish ack "<...>/<node_id>"
+local_broker:
+  ack_topic: "iot/ack"                 # gateway subscribe "<...>/+"
+```
+
+> ⚠️ Lệnh và ack đều là **realtime, không buffer**. Nếu cloud mất kết nối, lệnh không
+> tới gateway và ack không lên được cloud (khác telemetry vốn có store-and-forward).
+> Vì lệnh chỉ tới khi đang online nên hành vi này là hợp lý.
 
 ---
 

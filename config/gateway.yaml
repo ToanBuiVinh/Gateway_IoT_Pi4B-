@@ -16,6 +16,7 @@ local_broker:
   base_topic: "iot/nodes"    # Node publish (uplink) vào <base_topic>/<node_id>
   command_topic: "iot/cmd"   # Gateway publish lệnh (downlink) vào <command_topic>/<node_id>
   command_qos: 1
+  ack_topic: "iot/ack"       # Node publish phản hồi vào <ack_topic>/<node_id>, gateway subscribe
   keepalive: 60
 
 # --- Cloud MQTT Client (TLS/SSL) — nơi gateway đẩy dữ liệu lên ---
@@ -35,6 +36,8 @@ cloud:
   # gateway subscribe "<command_topic>/+" rồi relay xuống node qua broker cục bộ.
   command_topic: "tenant/gw-pi4b-01/cmd"
   command_qos: 1
+  # Command/ack: node phản hồi kết quả thực thi, gateway relay lên cloud.
+  ack_topic: "tenant/gw-pi4b-01/ack"
 
 # --- Cơ sở dữ liệu đệm cục bộ (SQLite + WAL) ---
 storage:

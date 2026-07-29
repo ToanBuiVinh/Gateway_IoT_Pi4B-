@@ -18,6 +18,8 @@ class Stats:
     dropped: int = 0           # bị loại (payload lỗi / node lạ)
     commands_relayed: int = 0  # lệnh downlink đã relay xuống node
     commands_dropped: int = 0  # lệnh bị loại (node lạ / lệnh hỏng)
+    acks_relayed: int = 0      # phản hồi (ack) từ node đã relay lên cloud
+    acks_dropped: int = 0      # ack bị loại (node lạ / ack hỏng / cloud offline)
 
 
 class AppState:

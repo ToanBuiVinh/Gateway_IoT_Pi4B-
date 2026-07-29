@@ -16,6 +16,7 @@ có retry khi mất mạng.
                  │                              SQLite (WAL)  telemetry_buffer│
                  │       Store-and-Forward Worker ◄── online? ──► +buffered ─►☁
   Node ◄─iot/cmd─┼─ Local ◄─ Command Worker ◄─ Cloud MQTT ◄─ lệnh downlink ◄─☁
+  Node ─iot/ack──┼► Local ─► Ack Worker ─► Cloud MQTT ─ phản hồi command/ack ─►☁
                  │       Network Monitor (5s) · Disk Cleanup (>85%)           │
                  └─────────────────────────────────────────────────────────────┘
 ```
@@ -30,8 +31,9 @@ có retry khi mất mạng.
 - **Batching ghi đĩa** (10–20 tin hoặc 3s / 1 transaction) để bảo vệ thẻ SD.
 - Quản lý tập trung **10 node** qua `config/nodes.yaml` (bật/tắt, đơn vị, kiểm tra
   khoảng giá trị hợp lệ). Theo dõi **online/offline** từng node.
-- **Điều khiển 2 chiều (downlink)**: cloud gửi lệnh → gateway subscribe & relay
-  xuống node qua `iot/cmd/<node_id>` (node thực thi: bật/tắt relay, đổi chu kỳ...).
+- **Điều khiển 2 chiều (downlink + command/ack)**: cloud gửi lệnh → gateway relay
+  xuống node qua `iot/cmd/<node_id>`; node thực thi rồi **phản hồi ack** (`cmd_id`,
+  `status`) → gateway relay lên cloud để xác nhận kết quả.
 - **Dọn đĩa tự động** khi vượt 85%; chạy nền bằng **systemd** (tự restart sau 10s).
 - Có **bộ giả lập 10 node** và **test pipeline** để chạy thử không cần phần cứng.
 

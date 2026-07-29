@@ -12,6 +12,7 @@ from .network_monitor import network_monitor_worker
 from .node_manager import NodeManager
 from .state import AppState
 from .workers import (
+    ack_worker,
     command_worker,
     database_worker,
     disk_cleanup_worker,
@@ -40,6 +41,7 @@ class Gateway:
         self.ingest_queue: asyncio.Queue = asyncio.Queue(maxsize=qmax)
         self.db_queue: asyncio.Queue = asyncio.Queue()
         self.cmd_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)  # lệnh downlink
+        self.ack_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)  # phản hồi từ node
         # Được gán trong run() khi đã có event loop
         self.local: LocalMqttClient | None = None
         self.publisher: CloudPublisher | None = None
@@ -52,7 +54,9 @@ class Gateway:
         # Hai MQTT client (§1). Cloud client kèm cmd_queue để nhận lệnh downlink.
         self.publisher = CloudPublisher(
             self.config.cloud, loop, self.state, command_queue=self.cmd_queue)
-        self.local = LocalMqttClient(self.config.local_broker, loop, self.ingest_queue)
+        self.local = LocalMqttClient(
+            self.config.local_broker, loop, self.ingest_queue,
+            ack_queue=self.ack_queue)
         self.publisher.start()
         self.local.start()
 
@@ -73,6 +77,9 @@ class Gateway:
             asyncio.create_task(command_worker(
                 self.cmd_queue, self.local, self.nodes, self.state),
                 name="command"),
+            asyncio.create_task(ack_worker(
+                self.ack_queue, self.publisher, self.nodes,
+                self.config.gateway_id, self.state), name="ack"),
             asyncio.create_task(disk_cleanup_worker(
                 self.config.maintenance, self.db), name="disk-cleanup"),
             asyncio.create_task(self._heartbeat(), name="heartbeat"),
@@ -97,11 +104,12 @@ class Gateway:
             pending = await asyncio.to_thread(self.db.pending_count)
             log.info(
                 "Nhip | cloud=%s | node online=%d/%d | nhan=%d thang=%d buffer=%d "
-                "gui_bu=%d loai=%d | lenh=%d | cho gui=%d",
+                "gui_bu=%d loai=%d | lenh=%d ack=%d | cho gui=%d",
                 "ON" if self.state.is_online else "OFF",
                 online, len(self.config.enabled_nodes()),
                 st.received, st.published_direct, st.buffered,
-                st.forwarded, st.dropped, st.commands_relayed, pending,
+                st.forwarded, st.dropped, st.commands_relayed,
+                st.acks_relayed, pending,
             )
 
     def shutdown(self) -> None:

@@ -21,6 +21,7 @@ from src.db import Database            # noqa: E402
 from src.node_manager import NodeManager  # noqa: E402
 from src.state import AppState         # noqa: E402
 from src.workers import (              # noqa: E402
+    ack_worker,
     command_worker,
     database_worker,
     ingestion_worker,
@@ -34,6 +35,7 @@ class FakePublisher:
     def __init__(self, state: AppState) -> None:
         self.state = state
         self.sent: list[dict] = []
+        self.acks: list[tuple] = []
         self.fail = False
 
     @property
@@ -44,6 +46,12 @@ class FakePublisher:
         if self.fail or not self.state.is_online:
             return False
         self.sent.append(payload)
+        return True
+
+    async def publish_ack(self, node_id: str, payload: dict) -> bool:
+        if self.fail or not self.state.is_online:
+            return False
+        self.acks.append((node_id, payload))
         return True
 
 
@@ -72,11 +80,13 @@ async def main() -> int:
     ingest_q: asyncio.Queue = asyncio.Queue(maxsize=1000)
     db_q: asyncio.Queue = asyncio.Queue()
     cmd_q: asyncio.Queue = asyncio.Queue(maxsize=1000)
+    ack_q: asyncio.Queue = asyncio.Queue(maxsize=1000)
     tasks = [
         asyncio.create_task(ingestion_worker(state, ingest_q, db_q, pub, nodes)),
         asyncio.create_task(database_worker(cfg.pipeline, db, db_q, state)),
         asyncio.create_task(store_and_forward_worker(cfg.store_forward, db, pub, state)),
         asyncio.create_task(command_worker(cmd_q, local, nodes, state)),
+        asyncio.create_task(ack_worker(ack_q, pub, nodes, cfg.gateway_id, state)),
     ]
 
     try:
@@ -127,6 +137,19 @@ async def main() -> int:
         assert state.stats.commands_dropped == 2, "phai loai 2 lenh xau"
         assert local.commands[0][0] == "node-06"
         print(f"   OK: relay={state.stats.commands_relayed}, loai={state.stats.commands_dropped}")
+
+        # 6) command/ack: node phan hoi -> relay len cloud (state dang ONLINE)
+        print("== Command/ack: relay phan hoi len cloud ==")
+        ack_q.put_nowait(("node-06", b'{"cmd_id":"abc123","status":"ok"}'))  # hop le
+        ack_q.put_nowait(("node-99", b'{"cmd_id":"x","status":"ok"}'))       # node la
+        ack_q.put_nowait(("node-06", b'not-json'))                           # hong
+        await asyncio.sleep(1)
+        assert state.stats.acks_relayed == 1, "phai relay 1 ack hop le"
+        assert state.stats.acks_dropped == 2, "phai loai 2 ack xau"
+        node_id, ack_payload = pub.acks[0]
+        assert node_id == "node-06" and ack_payload["cmd_id"] == "abc123"
+        assert ack_payload["gateway_id"] == cfg.gateway_id, "ack phai co gateway_id"
+        print(f"   OK: ack_relay={state.stats.acks_relayed}, loai={state.stats.acks_dropped}")
 
         print("\n=> TAT CA KICH BAN PASS.")
         return 0

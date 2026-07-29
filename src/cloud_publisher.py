@@ -35,6 +35,8 @@ class CloudPublisher:
         # Downlink: subscribe lệnh từ cloud (điều khiển 2 chiều)
         self.command_topic = cfg.get("command_topic", "")
         self.command_qos = int(cfg.get("command_qos", 1))
+        # Command/ack: topic để relay phản hồi từ node lên cloud
+        self.ack_topic = cfg.get("ack_topic", "").rstrip("/")
 
         self._client = mqtt.Client(client_id="pi4b-gateway-cloud")
         if cfg.get("username"):
@@ -70,23 +72,32 @@ class CloudPublisher:
 
     # ------------------------------------------------------------------
     async def publish(self, payload: Dict[str, Any]) -> bool:
-        """Publish 1 bản ghi, chờ PUBACK. Trả về True nếu thành công."""
+        """Publish 1 bản ghi telemetry, chờ PUBACK. True nếu thành công."""
+        return await self._publish_wait(self.topic, payload)
+
+    async def publish_ack(self, node_id: str, payload: Dict[str, Any]) -> bool:
+        """Relay phản hồi (ack) của node lên cloud tại <ack_topic>/<node_id>."""
+        if not self.ack_topic:
+            return False
+        return await self._publish_wait(f"{self.ack_topic}/{node_id}", payload)
+
+    async def _publish_wait(self, topic: str, payload: Dict[str, Any]) -> bool:
+        """Publish QoS1 tới topic bất kỳ và chờ PUBACK (không chặn event loop)."""
         if not self.connected:
             return False
         data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
         try:
-            info = self._client.publish(self.topic, data, qos=self.qos)
+            info = self._client.publish(topic, data, qos=self.qos)
             if info.rc != mqtt.MQTT_ERR_SUCCESS:
-                log.warning("publish tra rc=%s", info.rc)
+                log.warning("publish %s tra rc=%s", topic, info.rc)
                 return False
-            # Chờ PUBACK (QoS1) trong thread phụ để không chặn event loop.
             await asyncio.wait_for(
                 asyncio.to_thread(info.wait_for_publish, self.puback_timeout),
                 timeout=self.puback_timeout + 1,
             )
             return info.is_published()
         except (asyncio.TimeoutError, ValueError, RuntimeError) as exc:
-            log.warning("Cho PUBACK that bai: %s", exc)
+            log.warning("Cho PUBACK (%s) that bai: %s", topic, exc)
             return False
 
     # --- callbacks (thread paho) -> bắc cầu vào event loop ---

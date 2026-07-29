@@ -40,6 +40,7 @@ WiFiClient   espClient;
 PubSubClient mqtt(espClient);
 char topic[64];        // uplink:   iot/nodes/<NODE_ID>
 char cmdTopic[64];     // downlink: iot/cmd/<NODE_ID>
+char ackTopic[64];     // ack:      iot/ack/<NODE_ID>
 unsigned long lastPublish = 0;
 
 void connectWiFi() {
@@ -53,22 +54,40 @@ void connectWiFi() {
   Serial.printf("\nWiFi OK. IP: %s\n", WiFi.localIP().toString().c_str());
 }
 
-// Xử lý lệnh downlink nhận từ gateway. Ví dụ payload: {"cmd":"relay","state":1}
+// Gửi phản hồi (ack) lên gateway sau khi thực thi lệnh.
+void sendAck(const char* cmdId, const char* status, const char* detail) {
+  StaticJsonDocument<160> ack;
+  ack["cmd_id"] = cmdId;
+  ack["node_id"] = NODE_ID;
+  ack["status"] = status;          // "ok" | "error" | "unknown_cmd"
+  if (detail && strlen(detail)) ack["detail"] = detail;
+  char buf[192];
+  size_t n = serializeJson(ack, buf);
+  mqtt.publish(ackTopic, buf, n);
+  Serial.printf("  -> ack: %s\n", buf);
+}
+
+// Xử lý lệnh downlink nhận từ gateway.
+// Ví dụ payload: {"cmd_id":"abc123","cmd":"relay","state":1}
 void onCommand(char* t, byte* payload, unsigned int len) {
-  StaticJsonDocument<128> doc;
+  StaticJsonDocument<160> doc;
   if (deserializeJson(doc, payload, len)) {
     Serial.println("Lenh khong phai JSON hop le");
     return;
   }
+  const char* cmdId = doc["cmd_id"] | "";
   const char* cmd = doc["cmd"] | "";
-  Serial.printf("[%s] nhan lenh: cmd=%s\n", NODE_ID, cmd);
+  Serial.printf("[%s] nhan lenh: cmd=%s cmd_id=%s\n", NODE_ID, cmd, cmdId);
 
   if (strcmp(cmd, "relay") == 0) {
     int state = doc["state"] | 0;
     digitalWrite(ACTUATOR_PIN, state ? HIGH : LOW);
     Serial.printf("  -> dat ACTUATOR = %d\n", state);
+    sendAck(cmdId, "ok", state ? "relay=on" : "relay=off");
+  } else {
+    // Thêm các lệnh khác tại đây (đổi chu kỳ gửi, reboot, hiệu chỉnh...).
+    sendAck(cmdId, "unknown_cmd", cmd);
   }
-  // Thêm các lệnh khác tại đây, ví dụ đổi chu kỳ gửi, reboot, hiệu chỉnh...
 }
 
 void connectMQTT() {
@@ -97,6 +116,7 @@ void setup() {
   digitalWrite(ACTUATOR_PIN, LOW);
   snprintf(topic, sizeof(topic), "iot/nodes/%s", NODE_ID);
   snprintf(cmdTopic, sizeof(cmdTopic), "iot/cmd/%s", NODE_ID);
+  snprintf(ackTopic, sizeof(ackTopic), "iot/ack/%s", NODE_ID);
   connectWiFi();
   connectMQTT();
 }

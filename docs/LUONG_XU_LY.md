@@ -30,6 +30,8 @@ thuật sang mã nguồn cụ thể trong `src/`.
                  │                                                                  │
                  │   ── DOWNLINK (điều khiển 2 chiều) ──                              │
   Node ◄─iot/cmd─┼── Local MQTT ◄── Command Worker ◄── cmd_queue ◄── Cloud MQTT ◄─☁ Cloud
+                 │   ── ACK (phản hồi command/ack) ──                                │
+  Node ─iot/ack──┼─► Local MQTT ─► ack_queue ─► Ack Worker ─► Cloud MQTT ──ack──►  ☁ Cloud
                  │                                                                  │
                  │   Network Monitor (5s)   Disk Cleanup (>85%)   Heartbeat (30s)   │
                  └──────────────────────────────────────────────────────────────────┘
@@ -52,6 +54,7 @@ mạng riêng, tự reconnect) và bắc cầu về event loop bằng `call_soon
 | **§4** Store-and-Forward: backoff 2→300s, chunk 20–50 FIFO, buffered, throttle 50ms, PUBACK→update | `store_and_forward_worker`, `Backoff` | `workers.py` | `ORDER BY id ASC WHERE status=0`; `mark_sent` sau PUBACK |
 | **§5** Systemd restart 10s, dọn đĩa >85% | `iot-gateway.service`, `disk_cleanup_worker` | `systemd/`, `workers.py` | `RestartSec=10`; `shutil.disk_usage` |
 | **Downlink** điều khiển 2 chiều | `CloudPublisher` (subscribe), `command_worker`, `LocalMqttClient.publish_command` | `cloud_publisher.py`, `workers.py`, `mqtt_local.py` | cloud→`cmd/<id>`→relay→`iot/cmd/<id>`→node |
+| **Command/ack** phản hồi | `LocalMqttClient` (subscribe ack), `ack_worker`, `CloudPublisher.publish_ack` | `mqtt_local.py`, `workers.py`, `cloud_publisher.py` | node→`iot/ack/<id>`→relay→cloud `ack/<id>` |
 
 ---
 
@@ -114,10 +117,23 @@ Chiều ngược lại của telemetry: gửi lệnh từ cloud xuống node.
    relay, đổi chu kỳ gửi, hiệu chỉnh...). Xem `onCommand()` trong firmware mẫu.
 
 > Lệnh là **realtime, không buffer**: nếu cloud offline thì lệnh không tới gateway;
-> khác với telemetry (được store-and-forward). Muốn đảm bảo lệnh tới nơi, node nên
-> **phản hồi trạng thái** qua uplink để cloud xác nhận (cơ chế command/ack).
+> khác với telemetry (được store-and-forward).
 
-### 3.7. Kháng lỗi & Bảo trì (§5)
+### 3.7. Command/ack — Phản hồi thực thi (`ack_worker`)
+Đóng vòng điều khiển 2 chiều: node xác nhận đã thực thi lệnh.
+1. Cloud gửi lệnh kèm `cmd_id`: `{"cmd_id":"abc123","cmd":"relay","state":1}`.
+2. Node thực thi rồi publish **ack** lên `iot/ack/<node_id>`:
+   `{"cmd_id":"abc123","node_id":"node-06","status":"ok","detail":"relay=on"}`.
+3. **Local MQTT Client** đã subscribe `iot/ack/+` → phân loại theo tiền tố topic
+   (ack vs telemetry) → đẩy vào `ack_queue`.
+4. **Ack Worker** kiểm tra node hợp lệ + JSON, bổ sung `gateway_id`, rồi
+   `publisher.publish_ack(node_id, ...)` relay lên cloud tại `<cloud.ack_topic>/<node_id>`.
+5. Cloud khớp `cmd_id` để biết lệnh đã tới và **kết quả** (`ok`/`error`/`unknown_cmd`).
+
+> Ack cũng là **realtime (best-effort)**: chỉ relay khi cloud online (`acks_dropped`
+> tăng nếu cloud offline). Vì lệnh chỉ tới khi đang online nên điều này hợp lý.
+
+### 3.8. Kháng lỗi & Bảo trì (§5)
 - **Systemd** (`iot-gateway.service`): `Restart=always`, `RestartSec=10` — crash là
   tự bật lại sau 10s. `main.py` bắt `SIGINT/SIGTERM` để dừng gọn gàng.
 - **Disk cleanup** (`disk_cleanup_worker`): mỗi `disk_check_interval_sec`, nếu
@@ -143,9 +159,10 @@ Chiều ngược lại của telemetry: gửi lệnh từ cloud xuống node.
 ## 5. Kiểm thử
 
 `scripts/test_pipeline.py` chạy pipeline với **publisher/local client giả** (không
-cần broker), xác minh 5 kịch bản: OFFLINE→buffer, ONLINE→store-and-forward (+cờ
-buffered), ONLINE→publish thẳng (không buffer), dữ liệu lỗi→bị loại, và
-**downlink→relay lệnh xuống node** (node lạ/lệnh hỏng→bị loại).
+cần broker), xác minh 6 kịch bản: OFFLINE→buffer, ONLINE→store-and-forward (+cờ
+buffered), ONLINE→publish thẳng (không buffer), dữ liệu lỗi→bị loại,
+**downlink→relay lệnh xuống node**, và **command/ack→relay phản hồi lên cloud**
+(node lạ/payload hỏng→bị loại).
 
 ```bash
 python scripts/test_pipeline.py
