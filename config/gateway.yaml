@@ -81,6 +81,15 @@ maintenance:
   disk_threshold_pct: 85         # Vượt 85% => dọn dẹp
   cleanup_delete_batch: 5000     # Số bản ghi xoá mỗi lần dọn
 
+# --- Bảo mật / chống flood ở tầng gateway ---
+security:
+  flood_guard:
+    enabled: true
+    max_msgs_per_sec: 5        # tốc độ trung bình cho phép mỗi node
+    burst: 10                  # cho phép cụm ngắn (token-bucket)
+    max_payload_bytes: 2048    # payload lớn hơn -> loại (chống flood dung lượng)
+    warn_interval_sec: 10      # giới hạn tần suất log cảnh báo mỗi node
+
 # --- Ghi log ---
 logging:
   level: "INFO"              # DEBUG | INFO | WARNING | ERROR

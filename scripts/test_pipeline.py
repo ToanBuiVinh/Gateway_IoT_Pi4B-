@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.config import Config          # noqa: E402
 from src.db import Database            # noqa: E402
 from src.node_manager import NodeManager  # noqa: E402
+from src.ratelimit import FloodGuard   # noqa: E402
 from src.state import AppState         # noqa: E402
 from src.workers import (              # noqa: E402
     ack_worker,
@@ -77,12 +78,17 @@ async def main() -> int:
     pub = FakePublisher(state)
 
     local = FakeLocalClient()
+    known = [n["id"] for n in cfg.enabled_nodes()]
+    # Guard cho pipeline: tốc độ rộng rãi (không cản kịch bản 1-6), chặn payload > 2KB.
+    guard = FloodGuard(
+        {"enabled": True, "max_msgs_per_sec": 1000, "burst": 1000,
+         "max_payload_bytes": 2048}, known_ids=known)
     ingest_q: asyncio.Queue = asyncio.Queue(maxsize=1000)
     db_q: asyncio.Queue = asyncio.Queue()
     cmd_q: asyncio.Queue = asyncio.Queue(maxsize=1000)
     ack_q: asyncio.Queue = asyncio.Queue(maxsize=1000)
     tasks = [
-        asyncio.create_task(ingestion_worker(state, ingest_q, db_q, pub, nodes)),
+        asyncio.create_task(ingestion_worker(state, ingest_q, db_q, pub, nodes, guard)),
         asyncio.create_task(database_worker(cfg.pipeline, db, db_q, state)),
         asyncio.create_task(store_and_forward_worker(cfg.store_forward, db, pub, state)),
         asyncio.create_task(command_worker(cmd_q, local, nodes, state)),
@@ -150,6 +156,27 @@ async def main() -> int:
         assert node_id == "node-06" and ack_payload["cmd_id"] == "abc123"
         assert ack_payload["gateway_id"] == cfg.gateway_id, "ack phai co gateway_id"
         print(f"   OK: ack_relay={state.stats.acks_relayed}, loai={state.stats.acks_dropped}")
+
+        # 7a) chong flood: payload qua lon -> bi loai (qua pipeline, tat dinh)
+        print("== Flood guard: payload qua lon ==")
+        big = b'{"temperature":25,"x":"' + b'A' * 3000 + b'"}'  # > 2048 bytes
+        ingest_q.put_nowait(("node-01", big, 5000.0))
+        await asyncio.sleep(0.5)
+        assert state.stats.oversized == 1, "payload lon phai bi loai"
+        print(f"   OK: oversized={state.stats.oversized}")
+
+        # 7b) chong flood: token-bucket theo toc do (tat dinh voi dong ho gia)
+        print("== Flood guard: rate-limit (token-bucket) ==")
+        g = FloodGuard({"enabled": True, "max_msgs_per_sec": 1, "burst": 2},
+                       known_ids=["node-01"])
+        p = b'{"temperature":25}'
+        assert g.check("node-01", p, now=100.0)[0] is True    # token 1
+        assert g.check("node-01", p, now=100.0)[0] is True    # token 2 (burst)
+        assert g.check("node-01", p, now=100.0)[0] is False   # het token -> chan
+        assert g.check("node-01", p, now=102.0)[0] is True    # +2s -> nap lai token
+        # Node la khong cap phat bucket (chong phinh bo nho)
+        assert g.check("node-77", p, now=100.0) == (True, None)
+        print("   OK: burst=2 cho qua 2, chan tin thu 3, nap lai sau 2s")
 
         print("\n=> TAT CA KICH BAN PASS.")
         return 0

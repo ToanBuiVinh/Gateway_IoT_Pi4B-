@@ -10,6 +10,7 @@ from .db import Database
 from .mqtt_local import LocalMqttClient
 from .network_monitor import network_monitor_worker
 from .node_manager import NodeManager
+from .ratelimit import FloodGuard
 from .state import AppState
 from .workers import (
     ack_worker,
@@ -35,6 +36,11 @@ class Gateway:
             gateway_id=config.gateway_id,
             node_defs=config.enabled_nodes(),
             offline_after=int(config.logging_cfg.get("node_offline_after_sec", 120)),
+        )
+        # Chống flood: chỉ cấp bucket cho node đã khai báo.
+        self.guard = FloodGuard(
+            config.security.get("flood_guard", {}),
+            known_ids=[n["id"] for n in config.enabled_nodes()],
         )
         # Hàng đợi trên RAM
         qmax = int(config.pipeline.get("ingest_queue_max", 10000))
@@ -64,7 +70,7 @@ class Gateway:
         tasks = [
             asyncio.create_task(ingestion_worker(
                 self.state, self.ingest_queue, self.db_queue,
-                self.publisher, self.nodes), name="ingestion"),
+                self.publisher, self.nodes, self.guard), name="ingestion"),
             asyncio.create_task(database_worker(
                 self.config.pipeline, self.db, self.db_queue, self.state),
                 name="database"),
@@ -104,12 +110,12 @@ class Gateway:
             pending = await asyncio.to_thread(self.db.pending_count)
             log.info(
                 "Nhip | cloud=%s | node online=%d/%d | nhan=%d thang=%d buffer=%d "
-                "gui_bu=%d loai=%d | lenh=%d ack=%d | cho gui=%d",
+                "gui_bu=%d loai=%d flood(rl=%d,big=%d) | lenh=%d ack=%d | cho gui=%d",
                 "ON" if self.state.is_online else "OFF",
                 online, len(self.config.enabled_nodes()),
                 st.received, st.published_direct, st.buffered,
-                st.forwarded, st.dropped, st.commands_relayed,
-                st.acks_relayed, pending,
+                st.forwarded, st.dropped, st.rate_limited, st.oversized,
+                st.commands_relayed, st.acks_relayed, pending,
             )
 
     def shutdown(self) -> None:

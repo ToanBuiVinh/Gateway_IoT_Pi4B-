@@ -36,6 +36,8 @@ có retry khi mất mạng.
   `status`) → gateway relay lên cloud để xác nhận kết quả.
 - **Bảo mật MQTT**: TLS/SSL (kèm mTLS) cho local & cloud, xác thực tài khoản riêng
   từng node, **ACL** phân quyền tối thiểu theo topic, mật khẩu qua biến môi trường.
+- **Chống flood/rate-limiting**: token-bucket per-node + chặn payload lớn ở gateway,
+  cùng giới hạn kết nối/hàng đợi/kích thước ở broker.
 - **Dọn đĩa tự động** khi vượt 85%; chạy nền bằng **systemd** (tự restart sau 10s).
 - Có **bộ giả lập 10 node** và **test pipeline** để chạy thử không cần phần cứng.
 

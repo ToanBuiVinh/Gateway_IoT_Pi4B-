@@ -72,8 +72,10 @@ mạng riêng, tự reconnect) và bắc cầu về event loop bằng `call_soon
 - `LocalMqttClient._on_message` (chạy trong thread paho) đóng gói
   `(node_id, payload, recv_ts)` và `call_soon_threadsafe(put_nowait)` vào
   `ingest_queue` — **an toàn luồng**, không chặn thread mạng.
-- `ingestion_worker` lấy từ queue, gọi `NodeManager.handle_payload` để **giải mã
-  JSON + kiểm tra khoảng giá trị** (payload hỏng/node lạ → `stats.dropped`).
+- `ingestion_worker` lấy từ queue. **Chống flood trước tiên** (`FloodGuard`): chặn
+  payload quá lớn (`stats.oversized`) và vượt tốc độ theo token-bucket per-node
+  (`stats.rate_limited`). Sau đó gọi `NodeManager.handle_payload` để **giải mã JSON +
+  kiểm tra khoảng giá trị** (payload hỏng/node lạ → `stats.dropped`).
   - **Online** (`state.is_online`): `await publisher.publish(...)` gửi thẳng.
     Thành công → `published_direct++`.
   - **Offline / publish lỗi**: `await db_queue.put(...)` → chuyển cho Database Worker.
@@ -159,10 +161,10 @@ Chiều ngược lại của telemetry: gửi lệnh từ cloud xuống node.
 ## 5. Kiểm thử
 
 `scripts/test_pipeline.py` chạy pipeline với **publisher/local client giả** (không
-cần broker), xác minh 6 kịch bản: OFFLINE→buffer, ONLINE→store-and-forward (+cờ
+cần broker), xác minh 7 kịch bản: OFFLINE→buffer, ONLINE→store-and-forward (+cờ
 buffered), ONLINE→publish thẳng (không buffer), dữ liệu lỗi→bị loại,
-**downlink→relay lệnh xuống node**, và **command/ack→relay phản hồi lên cloud**
-(node lạ/payload hỏng→bị loại).
+**downlink→relay lệnh xuống node**, **command/ack→relay phản hồi lên cloud**, và
+**chống flood** (payload quá lớn→loại; token-bucket rate-limit tất định).
 
 ```bash
 python scripts/test_pipeline.py

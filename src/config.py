@@ -92,6 +92,10 @@ class Config:
         return self.gateway.get("maintenance", {})
 
     @property
+    def security(self) -> Dict[str, Any]:
+        return self.gateway.get("security", {})
+
+    @property
     def logging_cfg(self) -> Dict[str, Any]:
         return self.gateway.get("logging", {})
 

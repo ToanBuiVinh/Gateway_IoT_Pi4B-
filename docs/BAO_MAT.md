@@ -144,3 +144,43 @@ mosquitto_pub -h <PI> -p 8883 --cafile certs/ca.crt \
 mosquitto_pub -h <PI> -p 8883 --cafile certs/ca.crt \
   -u node-01 -P '<pass_node01>' -t 'iot/nodes/node-02' -m 'gia mao'
 ```
+
+---
+
+## 8. Chống flood / Rate-limiting
+
+Một node lỗi (hoặc bị chiếm quyền) có thể phát tràn dữ liệu, làm nghẽn pipeline,
+đầy RAM queue và bào mòn thẻ SD. Phòng thủ **2 tầng**:
+
+### 8.1. Tầng broker (Mosquitto) — giảm tác động
+`scripts/setup_mosquitto_secure.sh` ghi sẵn các giới hạn:
+```
+message_size_limit 4096       # bỏ bản tin > 4KB
+max_connections 200           # trần kết nối đồng thời
+max_inflight_messages 20      # bản tin QoS>0 chờ ACK mỗi client
+max_queued_messages 100       # hàng đợi tối đa mỗi client
+max_keepalive 120
+```
+> Lưu ý: Mosquitto **không** giới hạn *tốc độ publish/giây* cho từng client — đó là
+> lý do cần tầng gateway.
+
+### 8.2. Tầng gateway (thực thi được) — token-bucket per-node
+`FloodGuard` (`src/ratelimit.py`) chặn ngay tại `ingestion_worker`, **trước khi**
+dữ liệu vào pipeline:
+```yaml
+# config/gateway.yaml
+security:
+  flood_guard:
+    enabled: true
+    max_msgs_per_sec: 5        # tốc độ trung bình mỗi node
+    burst: 10                  # cho phép cụm ngắn (token-bucket)
+    max_payload_bytes: 2048    # payload lớn hơn -> loại
+    warn_interval_sec: 10      # giới hạn tần suất log cảnh báo
+```
+- **Token-bucket per-node**: mỗi node có ngân sách riêng; node flood chỉ tự chặn
+  chính nó, **không ảnh hưởng** 9 node còn lại.
+- **Chặn payload lớn** ngay lập tức (đếm `oversized`).
+- Chỉ cấp bucket cho **node đã khai báo** (node lạ không tạo bucket → chống phình
+  bộ nhớ do id ngẫu nhiên).
+- Log cảnh báo được **giới hạn tần suất** (bản thân log không bị flood).
+- Số liệu hiển thị ở heartbeat: `flood(rl=<rate_limited>, big=<oversized>)`.

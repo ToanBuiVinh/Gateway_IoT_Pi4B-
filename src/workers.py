@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Dict
 
 from .db import Database
 from .node_manager import NodeManager
+from .ratelimit import FloodGuard
 from .state import AppState
 
 if TYPE_CHECKING:
@@ -52,11 +53,25 @@ async def ingestion_worker(
     db_queue: "asyncio.Queue",
     publisher: CloudPublisher,
     nodes: NodeManager,
+    guard: "FloodGuard | None" = None,
 ) -> None:
     log.info("Ingestion worker: san sang")
     while True:
         node_id, payload, recv_ts = await ingest_queue.get()
         try:
+            # Chống flood: chặn payload quá lớn hoặc vượt tốc độ trước khi xử lý.
+            if guard is not None:
+                ok, reason = guard.check(node_id, payload)
+                if not ok:
+                    if reason == "size":
+                        state.stats.oversized += 1
+                    else:
+                        state.stats.rate_limited += 1
+                    if guard.should_warn(node_id):
+                        log.warning("Flood guard: chan bot tin tu node %s (%s)",
+                                    node_id, reason)
+                    continue
+
             reading = nodes.handle_payload(node_id, payload)
             if reading is None:
                 state.stats.dropped += 1

@@ -16,6 +16,8 @@ class Stats:
     buffered: int = 0          # ghi vào SQLite (offline/lỗi)
     forwarded: int = 0         # gửi bù thành công từ buffer
     dropped: int = 0           # bị loại (payload lỗi / node lạ)
+    rate_limited: int = 0      # bị chặn do vượt tốc độ (flood guard)
+    oversized: int = 0         # bị chặn do payload quá lớn
     commands_relayed: int = 0  # lệnh downlink đã relay xuống node
     commands_dropped: int = 0  # lệnh bị loại (node lạ / lệnh hỏng)
     acks_relayed: int = 0      # phản hồi (ack) từ node đã relay lên cloud
