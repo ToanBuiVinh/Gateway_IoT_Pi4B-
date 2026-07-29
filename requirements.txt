@@ -1,0 +1,6 @@
+# IoT Gateway - Raspberry Pi 4B
+# Cài đặt: pip install -r requirements.txt
+
+paho-mqtt==1.6.1        # MQTT client (nhận từ node + đẩy lên cloud)
+PyYAML==6.0.1           # Đọc file cấu hình YAML
+requests==2.31.0        # Đẩy dữ liệu lên cloud qua HTTP REST (tuỳ chọn)

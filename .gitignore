@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Dữ liệu runtime
+*.db
+*.sqlite
+*.sqlite3
+data/
+logs/
+*.log
+
+# Cấu hình bí mật (copy từ *.example rồi điền thông tin thật)
+config/secrets.yaml
+.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store

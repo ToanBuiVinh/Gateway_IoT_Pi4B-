@@ -1,0 +1,19 @@
+[Unit]
+Description=IoT Gateway (Raspberry Pi 4B) - quan ly 10 node MQTT
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Doi user/duong dan cho dung may cua ban (mac dinh Pi la user "pi").
+User=pi
+WorkingDirectory=/opt/iot-gateway
+ExecStart=/opt/iot-gateway/.venv/bin/python -m src.main
+Restart=always
+RestartSec=5
+# Ghi log ra journald: xem bang `journalctl -u iot-gateway -f`
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

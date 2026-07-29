@@ -1,0 +1,63 @@
+# =====================================================================
+# CẤU HÌNH GATEWAY - Raspberry Pi 4B
+# =====================================================================
+
+gateway:
+  id: "gw-pi4b-01"            # Định danh gateway (dùng khi đẩy lên cloud)
+  name: "Gateway IoT Pi4B"
+  location: "Nha xuong A"
+
+# --- MQTT broker cục bộ (Mosquitto chạy ngay trên Pi) ---
+# Các node ESP32 publish dữ liệu vào broker này.
+local_broker:
+  host: "127.0.0.1"
+  port: 1883
+  username: ""               # Để trống nếu cho phép anonymous
+  password: ""
+  # Topic node dùng để publish: <base_topic>/<node_id>
+  # Ví dụ node "node-01" publish vào "iot/nodes/node-01"
+  base_topic: "iot/nodes"
+  keepalive: 60
+
+# --- Bộ đệm cục bộ (SQLite) ---
+# Giữ dữ liệu khi mất kết nối cloud, tự đẩy lại khi có mạng.
+storage:
+  path: "data/gateway.db"
+  # Số bản ghi tối đa còn giữ khi CHƯA đẩy được lên cloud.
+  max_buffer_rows: 100000
+
+# --- Đẩy dữ liệu lên Cloud ---
+# mode: "mqtt" | "http" | "none"
+#   mqtt  -> publish sang broker cloud (AWS IoT, HiveMQ, EMQX Cloud...)
+#   http  -> POST JSON tới REST endpoint (ThingsBoard, Ubidots, server riêng...)
+#   none  -> chỉ chạy cục bộ, không đẩy đi (để test)
+cloud:
+  mode: "http"
+  batch_size: 50             # Số bản ghi gửi mỗi lần
+  flush_interval_sec: 10     # Chu kỳ gom & đẩy dữ liệu
+
+  # Cấu hình khi mode = "http"
+  http:
+    url: "https://your-cloud.example.com/api/v1/telemetry"
+    method: "POST"
+    # Header xác thực (đổi theo nền tảng của bạn)
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer THAY_TOKEN_CUA_BAN"
+    timeout_sec: 10
+
+  # Cấu hình khi mode = "mqtt"
+  mqtt:
+    host: "your-cloud-broker.example.com"
+    port: 8883
+    tls: true
+    username: "cloud_user"
+    password: "cloud_pass"
+    publish_topic: "tenant/gw-pi4b-01/telemetry"
+
+# --- Ghi log ---
+logging:
+  level: "INFO"              # DEBUG | INFO | WARNING | ERROR
+  file: "logs/gateway.log"
+  # Coi node là OFFLINE nếu không nhận dữ liệu sau ngần này giây.
+  node_offline_after_sec: 120
