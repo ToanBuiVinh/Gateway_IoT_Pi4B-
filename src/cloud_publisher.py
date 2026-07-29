@@ -10,11 +10,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import ssl
 from typing import Any, Dict
 
 import paho.mqtt.client as mqtt
 
+from .mqtt_tls import apply_tls
 from .state import AppState
 
 log = logging.getLogger("gateway.cloud")
@@ -41,9 +41,8 @@ class CloudPublisher:
         self._client = mqtt.Client(client_id="pi4b-gateway-cloud")
         if cfg.get("username"):
             self._client.username_pw_set(cfg["username"], cfg.get("password", ""))
-        if cfg.get("tls"):
-            ca = cfg.get("ca_cert") or None
-            self._client.tls_set(ca_certs=ca, cert_reqs=ssl.CERT_REQUIRED)
+        # TLS/mTLS: cfg dùng key tls, ca_cert, client_cert, client_key, tls_insecure
+        apply_tls(self._client, cfg, name="cloud")
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
         self._client.on_message = self._on_message

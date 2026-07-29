@@ -34,6 +34,8 @@ có retry khi mất mạng.
 - **Điều khiển 2 chiều (downlink + command/ack)**: cloud gửi lệnh → gateway relay
   xuống node qua `iot/cmd/<node_id>`; node thực thi rồi **phản hồi ack** (`cmd_id`,
   `status`) → gateway relay lên cloud để xác nhận kết quả.
+- **Bảo mật MQTT**: TLS/SSL (kèm mTLS) cho local & cloud, xác thực tài khoản riêng
+  từng node, **ACL** phân quyền tối thiểu theo topic, mật khẩu qua biến môi trường.
 - **Dọn đĩa tự động** khi vượt 85%; chạy nền bằng **systemd** (tự restart sau 10s).
 - Có **bộ giả lập 10 node** và **test pipeline** để chạy thử không cần phần cứng.
 
@@ -79,6 +81,7 @@ scripts/                 # cài đặt, cấu hình broker, giả lập node, te
 systemd/                 # service chạy nền (restart 10s)
 docs/HUONG_DAN.md        # HƯỚNG DẪN CHI TIẾT (cài đặt, phần cứng, cloud)
 docs/LUONG_XU_LY.md      # phân tích kiến trúc & logic xử lý (đặc tả -> code)
+docs/BAO_MAT.md          # thiết kế & hướng dẫn bảo mật MQTT (TLS/auth/ACL/secrets)
 ```
 
 👉 **Xem hướng dẫn đầy đủ (phần cứng, đấu nối, cloud, khắc phục lỗi) tại

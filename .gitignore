@@ -17,6 +17,12 @@ logs/
 config/secrets.yaml
 .env
 
+# Bí mật MQTT / TLS — KHÔNG BAO GIỜ commit khoá riêng & mật khẩu
+certs/
+*.key
+*.pem
+mqtt_credentials.txt
+
 # IDE / OS
 .vscode/
 .idea/

@@ -16,16 +16,34 @@
 #include <ArduinoJson.h>
 #include "DHT.h"
 
+// ----------- BẢO MẬT: bật TLS tới broker (khuyến nghị khi qua mạng không tin cậy) -----------
+#define USE_TLS 0            // 0 = cổng 1883 (LAN tin cậy) | 1 = TLS cổng 8883
+#if USE_TLS
+  #include <WiFiClientSecure.h>
+  // Dán nội dung certs/ca.crt (từ scripts/gen_certs.sh) vào đây:
+  const char* CA_CERT = R"EOF(
+-----BEGIN CERTIFICATE-----
+... DAN NOI DUNG certs/ca.crt VAO DAY ...
+-----END CERTIFICATE-----
+)EOF";
+  WiFiClientSecure espClient;
+  const int MQTT_PORT = 8883;
+#else
+  WiFiClient espClient;
+  const int MQTT_PORT = 1883;
+#endif
+
 // ----------- CẤU HÌNH (đổi theo node của bạn) -----------
 const char* WIFI_SSID     = "TEN_WIFI";
 const char* WIFI_PASS     = "MAT_KHAU_WIFI";
 
-const char* MQTT_HOST     = "192.168.1.10";   // IP của Raspberry Pi 4B
-const int   MQTT_PORT     = 1883;
-const char* MQTT_USER     = "";               // để trống nếu anonymous
-const char* MQTT_PASS     = "";
+const char* MQTT_HOST     = "192.168.1.10";   // IP/hostname của Raspberry Pi 4B
 
 const char* NODE_ID       = "node-01";        // <-- ĐỔI cho từng node
+// BẢO MẬT: username = NODE_ID để khớp ACL (%u). Mật khẩu do setup_mosquitto_secure.sh cấp.
+const char* MQTT_USER     = "node-01";        // <-- ĐỔI = NODE_ID
+const char* MQTT_PASS     = "MAT_KHAU_NODE";  // <-- lấy từ mqtt_credentials.txt trên Pi
+
 const unsigned long PUBLISH_INTERVAL_MS = 10000;  // 10 giây/lần
 
 // ----------- Cảm biến DHT22 -----------
@@ -117,6 +135,9 @@ void setup() {
   snprintf(topic, sizeof(topic), "iot/nodes/%s", NODE_ID);
   snprintf(cmdTopic, sizeof(cmdTopic), "iot/cmd/%s", NODE_ID);
   snprintf(ackTopic, sizeof(ackTopic), "iot/ack/%s", NODE_ID);
+#if USE_TLS
+  espClient.setCACert(CA_CERT);   // xác thực broker qua CA nội bộ
+#endif
   connectWiFi();
   connectMQTT();
 }

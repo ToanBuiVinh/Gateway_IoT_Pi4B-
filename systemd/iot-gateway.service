@@ -8,6 +8,9 @@ Type=simple
 # Doi user/duong dan cho dung may cua ban (mac dinh Pi la user "pi").
 User=pi
 WorkingDirectory=/opt/iot-gateway
+# Bảo mật: nạp mật khẩu MQTT từ file bí mật (chmod 600), KHÔNG ghi trong unit này.
+# Tạo /etc/iot-gateway/secrets.env theo mẫu .env.example.
+EnvironmentFile=-/etc/iot-gateway/secrets.env
 ExecStart=/opt/iot-gateway/.venv/bin/python -m src.main
 Restart=always
 RestartSec=10

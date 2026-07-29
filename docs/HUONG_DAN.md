@@ -86,11 +86,14 @@ mosquitto_pub -t 'iot/nodes/node-01' -m '{"temperature":25.5,"humidity":60}'
 ```
 Nếu terminal 1 hiện bản tin ⇒ broker OK.
 
-> **Bảo mật khi chạy thật:** sửa `/etc/mosquitto/conf.d/gateway.conf` đặt
-> `allow_anonymous false`, tạo user:
-> `sudo mosquitto_passwd -c /etc/mosquitto/passwd iotuser`, bỏ comment dòng
-> `password_file`, rồi `sudo systemctl restart mosquitto`. Nhớ điền
-> `username/password` tương ứng vào `config/gateway.yaml` và firmware node.
+> ⚠️ `setup_mosquitto.sh` là **bản nhanh, KHÔNG bảo mật** (cho phép anonymous) —
+> chỉ dùng để test. **Khi chạy thật**, dùng bản bảo mật (tài khoản riêng từng node
+> + ACL + TLS):
+> ```bash
+> bash scripts/gen_certs.sh <IP_cua_Pi>        # sinh chứng chỉ TLS (nếu bật TLS)
+> ENABLE_TLS=1 bash scripts/setup_mosquitto_secure.sh
+> ```
+> Xem hướng dẫn đầy đủ tại **[`docs/BAO_MAT.md`](BAO_MAT.md)**.
 
 ---
 

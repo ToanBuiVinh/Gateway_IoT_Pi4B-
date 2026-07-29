@@ -10,9 +10,16 @@ gateway:
 # --- MQTT broker cục bộ (Mosquitto trên Pi) — nơi 10 node publish về ---
 local_broker:
   host: "127.0.0.1"
-  port: 1883
-  username: ""
-  password: ""
+  port: 1883                 # 1883 (không TLS) hoặc 8883 (TLS)
+  # Bảo mật: tài khoản gateway (tránh anonymous). Lấy từ biến môi trường.
+  username: "${LOCAL_MQTT_USER:-gateway}"
+  password: "${LOCAL_MQTT_PASS:-}"
+  # TLS cho broker cục bộ (bật khi muốn mã hoá cả trong LAN). Đổi port -> 8883.
+  tls_enabled: false
+  tls_ca_cert: "certs/ca.crt"
+  tls_client_cert: ""        # mTLS (tuỳ chọn): chứng chỉ client của gateway
+  tls_client_key: ""
+  tls_insecure: false        # true = bỏ kiểm tra cert (CHỈ dev/tự ký)
   base_topic: "iot/nodes"    # Node publish (uplink) vào <base_topic>/<node_id>
   command_topic: "iot/cmd"   # Gateway publish lệnh (downlink) vào <command_topic>/<node_id>
   command_qos: 1
@@ -24,10 +31,14 @@ cloud:
   enabled: true              # false => chạy cục bộ, mọi dữ liệu buffer vào SQLite
   host: "your-cloud-broker.example.com"
   port: 8883
-  tls: true                  # true => bật TLS/SSL
+  tls: true                  # true => bật TLS/SSL (khuyến nghị luôn bật với cloud)
   ca_cert: ""                # (tuỳ chọn) đường dẫn CA cert; trống = dùng CA hệ thống
-  username: "cloud_user"
-  password: "cloud_pass"
+  client_cert: ""            # mTLS (tuỳ chọn): chứng chỉ client (vd AWS IoT Core)
+  client_key: ""             # mTLS: khoá riêng client
+  tls_insecure: false        # true = bỏ kiểm tra cert (CHỈ dev; KHÔNG dùng thật)
+  # Bảo mật: mật khẩu lấy từ biến môi trường, KHÔNG hardcode trong file này.
+  username: "${CLOUD_MQTT_USER:-}"
+  password: "${CLOUD_MQTT_PASS:-}"
   keepalive: 30
   publish_topic: "tenant/gw-pi4b-01/telemetry"   # uplink: gateway -> cloud
   qos: 1                     # QoS 1 => có PUBACK xác nhận

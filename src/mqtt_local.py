@@ -12,6 +12,8 @@ from typing import Any, Dict
 
 import paho.mqtt.client as mqtt
 
+from .mqtt_tls import apply_tls
+
 log = logging.getLogger("gateway.local")
 
 # Phần tử trong queue: (node_id, payload_bytes, recv_ts)
@@ -33,6 +35,13 @@ class LocalMqttClient:
         self._client = mqtt.Client(client_id="pi4b-gateway-local")
         if cfg.get("username"):
             self._client.username_pw_set(cfg["username"], cfg.get("password", ""))
+        # TLS cho broker cục bộ (tuỳ chọn): key tls_enabled, tls_ca_cert, ...
+        apply_tls(
+            self._client, cfg,
+            enabled_key="tls_enabled", ca_key="tls_ca_cert",
+            cert_key="tls_client_cert", key_key="tls_client_key",
+            insecure_key="tls_insecure", name="local",
+        )
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._client.on_disconnect = self._on_disconnect

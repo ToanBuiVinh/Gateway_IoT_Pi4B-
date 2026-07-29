@@ -2,17 +2,40 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any, Dict
 
 import yaml
 
+# ${VAR} hoặc ${VAR:-mac_dinh} -> thay bằng biến môi trường (bảo mật: không commit
+# mật khẩu/khoá vào YAML; đặt chúng trong .env hoặc systemd EnvironmentFile).
+_ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+
+
+def _expand_env_str(value: str) -> str:
+    def repl(m: "re.Match[str]") -> str:
+        var, default = m.group(1), m.group(2)
+        return os.environ.get(var, default if default is not None else "")
+    return _ENV_PATTERN.sub(repl, value)
+
+
+def _expand_env(obj: Any) -> Any:
+    """Đệ quy thay ${VAR} trong mọi chuỗi của cấu hình."""
+    if isinstance(obj, str):
+        return _expand_env_str(obj)
+    if isinstance(obj, dict):
+        return {k: _expand_env(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_expand_env(v) for v in obj]
+    return obj
+
 
 def load_yaml(path: str) -> Dict[str, Any]:
-    """Đọc một file YAML thành dict."""
+    """Đọc một file YAML thành dict, có mở rộng biến môi trường ${VAR}."""
     if not os.path.exists(path):
         raise FileNotFoundError(f"Khong tim thay file cau hinh: {path}")
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+        return _expand_env(yaml.safe_load(f) or {})
 
 
 class Config:

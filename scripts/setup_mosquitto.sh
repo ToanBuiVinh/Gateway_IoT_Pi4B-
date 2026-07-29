@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Cài & cấu hình Mosquitto MQTT broker trên Raspberry Pi 4B
+# Cài & cấu hình Mosquitto MQTT broker trên Raspberry Pi 4B — BẢN NHANH (KHÔNG bảo mật).
+# CHỈ dùng để test cục bộ. Khi chạy thật hãy dùng scripts/setup_mosquitto_secure.sh
+# (tài khoản riêng + ACL + TLS). Xem docs/BAO_MAT.md.
 set -euo pipefail
 
 echo ">> Cai dat Mosquitto..."
