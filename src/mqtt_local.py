@@ -25,6 +25,8 @@ class LocalMqttClient:
         self._loop = loop
         self._queue = queue
         self.base_topic = cfg.get("base_topic", "iot/nodes").rstrip("/")
+        self.command_topic = cfg.get("command_topic", "iot/cmd").rstrip("/")
+        self.command_qos = int(cfg.get("command_qos", 1))
         self._client = mqtt.Client(client_id="pi4b-gateway-local")
         if cfg.get("username"):
             self._client.username_pw_set(cfg["username"], cfg.get("password", ""))
@@ -43,6 +45,15 @@ class LocalMqttClient:
     def stop(self) -> None:
         self._client.loop_stop()
         self._client.disconnect()
+
+    def publish_command(self, node_id: str, payload: bytes) -> bool:
+        """Relay lệnh downlink xuống node qua <command_topic>/<node_id>."""
+        topic = f"{self.command_topic}/{node_id}"
+        info = self._client.publish(topic, payload, qos=self.command_qos)
+        ok = info.rc == mqtt.MQTT_ERR_SUCCESS
+        if not ok:
+            log.warning("Publish lenh xuong %s that bai rc=%s", node_id, info.rc)
+        return ok
 
     # --- callbacks (chạy trong thread paho) ---
     def _on_connect(self, client, userdata, flags, rc):  # noqa: ANN001

@@ -214,8 +214,44 @@ Gateway sẽ tự khởi động cùng Pi và tự chạy lại nếu bị crash
 
 ---
 
-## 11. Mở rộng gợi ý
+## 11. Điều khiển 2 chiều (Downlink) — gửi lệnh xuống node
+
+Ngoài thu thập dữ liệu (uplink), gateway có thể **relay lệnh từ cloud xuống node**.
+
+**Luồng:** Cloud publish → `tenant/gw-pi4b-01/cmd/<node_id>` → gateway subscribe →
+relay → `iot/cmd/<node_id>` → node thực thi.
+
+**Cấu hình** (`config/gateway.yaml`):
+```yaml
+cloud:
+  command_topic: "tenant/gw-pi4b-01/cmd"   # gateway subscribe "<...>/+"
+  command_qos: 1
+local_broker:
+  command_topic: "iot/cmd"                 # gateway publish "<...>/<node_id>"
+```
+
+**Gửi lệnh từ cloud** (ví dụ bật relay ở node-06):
+```
+Topic:   tenant/gw-pi4b-01/cmd/node-06
+Payload: {"cmd":"relay","state":1}
+```
+
+**Phía node ESP32**: firmware mẫu đã `subscribe("iot/cmd/<NODE_ID>")` và có hàm
+`onCommand()` xử lý — ví dụ bật/tắt chân `ACTUATOR_PIN`. Thêm lệnh mới (đổi chu kỳ
+gửi, reboot, hiệu chỉnh cảm biến...) ngay trong hàm này.
+
+**Thử nhanh trên Pi** (không cần cloud, publish thẳng vào broker cục bộ):
+```bash
+mosquitto_pub -t 'iot/cmd/node-06' -m '{"cmd":"relay","state":1}'
+```
+
+> ⚠️ Lệnh là **realtime, không được buffer**. Nếu cloud mất kết nối, lệnh sẽ không tới
+> gateway (khác telemetry vốn có store-and-forward). Để chắc chắn, cho node **phản hồi
+> trạng thái** qua uplink để cloud xác nhận (command/ack).
+
+---
+
+## 12. Mở rộng gợi ý
 - **Dashboard**: cài Node-RED hoặc Grafana trên Pi để vẽ biểu đồ realtime.
-- **Điều khiển 2 chiều**: subscribe thêm topic `iot/cmd/<node_id>` để gửi lệnh xuống node.
 - **Bảo mật**: bật TLS cho cả broker cục bộ, xoay vòng mật khẩu, dùng client certificate.
 - **Giao thức khác**: thêm adapter LoRa/Zigbee/Modbus như mục 1 đã nêu.

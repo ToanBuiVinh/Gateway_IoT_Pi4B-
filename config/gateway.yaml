@@ -13,7 +13,9 @@ local_broker:
   port: 1883
   username: ""
   password: ""
-  base_topic: "iot/nodes"    # Node publish vào <base_topic>/<node_id>
+  base_topic: "iot/nodes"    # Node publish (uplink) vào <base_topic>/<node_id>
+  command_topic: "iot/cmd"   # Gateway publish lệnh (downlink) vào <command_topic>/<node_id>
+  command_qos: 1
   keepalive: 60
 
 # --- Cloud MQTT Client (TLS/SSL) — nơi gateway đẩy dữ liệu lên ---
@@ -26,9 +28,13 @@ cloud:
   username: "cloud_user"
   password: "cloud_pass"
   keepalive: 30
-  publish_topic: "tenant/gw-pi4b-01/telemetry"
+  publish_topic: "tenant/gw-pi4b-01/telemetry"   # uplink: gateway -> cloud
   qos: 1                     # QoS 1 => có PUBACK xác nhận
   puback_timeout_sec: 10     # Chờ PUBACK tối đa
+  # Downlink (điều khiển 2 chiều): cloud publish lệnh vào <command_topic>/<node_id>,
+  # gateway subscribe "<command_topic>/+" rồi relay xuống node qua broker cục bộ.
+  command_topic: "tenant/gw-pi4b-01/cmd"
+  command_qos: 1
 
 # --- Cơ sở dữ liệu đệm cục bộ (SQLite + WAL) ---
 storage:

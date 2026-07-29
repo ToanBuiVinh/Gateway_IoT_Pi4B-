@@ -28,6 +28,9 @@ thuật sang mã nguồn cụ thể trong `src/`.
                  │   Store-and-Forward Worker ◄── online? ───────────┘               │
                  │     đọc FIFO, +buffered:true, throttle 50ms, PUBACK→status=1 ──►☁  │
                  │                                                                  │
+                 │   ── DOWNLINK (điều khiển 2 chiều) ──                              │
+  Node ◄─iot/cmd─┼── Local MQTT ◄── Command Worker ◄── cmd_queue ◄── Cloud MQTT ◄─☁ Cloud
+                 │                                                                  │
                  │   Network Monitor (5s)   Disk Cleanup (>85%)   Heartbeat (30s)   │
                  └──────────────────────────────────────────────────────────────────┘
 ```
@@ -48,6 +51,7 @@ mạng riêng, tự reconnect) và bắc cầu về event loop bằng `call_soon
 | **§3** Batching 10–20 msg hoặc 3s → 1 transaction | `database_worker`, `Database.insert_batch` | `workers.py`, `db.py` | `executemany` + 1 `COMMIT` cho cả lô |
 | **§4** Store-and-Forward: backoff 2→300s, chunk 20–50 FIFO, buffered, throttle 50ms, PUBACK→update | `store_and_forward_worker`, `Backoff` | `workers.py` | `ORDER BY id ASC WHERE status=0`; `mark_sent` sau PUBACK |
 | **§5** Systemd restart 10s, dọn đĩa >85% | `iot-gateway.service`, `disk_cleanup_worker` | `systemd/`, `workers.py` | `RestartSec=10`; `shutil.disk_usage` |
+| **Downlink** điều khiển 2 chiều | `CloudPublisher` (subscribe), `command_worker`, `LocalMqttClient.publish_command` | `cloud_publisher.py`, `workers.py`, `mqtt_local.py` | cloud→`cmd/<id>`→relay→`iot/cmd/<id>`→node |
 
 ---
 
@@ -97,7 +101,23 @@ mạng riêng, tự reconnect) và bắc cầu về event loop bằng `call_soon
 `state.set_offline()`. Việc chuyển sang ONLINE do callback `on_connect` của paho
 đảm nhiệm (chỉ báo online khi **đã bắt tay MQTT thật**, tránh online giả).
 
-### 3.6. Kháng lỗi & Bảo trì (§5)
+### 3.6. Điều khiển 2 chiều — Downlink (`command_worker`)
+Chiều ngược lại của telemetry: gửi lệnh từ cloud xuống node.
+1. **Cloud** publish lệnh (JSON) vào `<cloud.command_topic>/<node_id>`
+   (vd `tenant/gw-pi4b-01/cmd/node-06`, payload `{"cmd":"relay","state":1}`).
+2. **Cloud MQTT Client** đã `subscribe("<command_topic>/+")` (tự subscribe lại sau
+   mỗi lần reconnect) → `on_message` bắc cầu `(node_id, payload)` vào `cmd_queue`.
+3. **Command Worker** lấy từ `cmd_queue`, kiểm tra `node_id` hợp lệ + payload là JSON
+   (lệnh rác/node lạ → `commands_dropped`), rồi `LocalMqttClient.publish_command`
+   relay xuống broker cục bộ tại `<local.command_topic>/<node_id>` (vd `iot/cmd/node-06`).
+4. **Node** (ESP32) đã `subscribe("iot/cmd/<NODE_ID>")` → nhận và thực thi (bật/tắt
+   relay, đổi chu kỳ gửi, hiệu chỉnh...). Xem `onCommand()` trong firmware mẫu.
+
+> Lệnh là **realtime, không buffer**: nếu cloud offline thì lệnh không tới gateway;
+> khác với telemetry (được store-and-forward). Muốn đảm bảo lệnh tới nơi, node nên
+> **phản hồi trạng thái** qua uplink để cloud xác nhận (cơ chế command/ack).
+
+### 3.7. Kháng lỗi & Bảo trì (§5)
 - **Systemd** (`iot-gateway.service`): `Restart=always`, `RestartSec=10` — crash là
   tự bật lại sau 10s. `main.py` bắt `SIGINT/SIGTERM` để dừng gọn gàng.
 - **Disk cleanup** (`disk_cleanup_worker`): mỗi `disk_check_interval_sec`, nếu
@@ -122,9 +142,10 @@ mạng riêng, tự reconnect) và bắc cầu về event loop bằng `call_soon
 
 ## 5. Kiểm thử
 
-`scripts/test_pipeline.py` chạy pipeline với **publisher giả** (không cần broker),
-xác minh 4 kịch bản: OFFLINE→buffer, ONLINE→store-and-forward (+cờ buffered),
-ONLINE→publish thẳng (không buffer), và dữ liệu lỗi→bị loại.
+`scripts/test_pipeline.py` chạy pipeline với **publisher/local client giả** (không
+cần broker), xác minh 5 kịch bản: OFFLINE→buffer, ONLINE→store-and-forward (+cờ
+buffered), ONLINE→publish thẳng (không buffer), dữ liệu lỗi→bị loại, và
+**downlink→relay lệnh xuống node** (node lạ/lệnh hỏng→bị loại).
 
 ```bash
 python scripts/test_pipeline.py

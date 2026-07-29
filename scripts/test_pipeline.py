@@ -21,6 +21,7 @@ from src.db import Database            # noqa: E402
 from src.node_manager import NodeManager  # noqa: E402
 from src.state import AppState         # noqa: E402
 from src.workers import (              # noqa: E402
+    command_worker,
     database_worker,
     ingestion_worker,
     store_and_forward_worker,
@@ -46,6 +47,17 @@ class FakePublisher:
         return True
 
 
+class FakeLocalClient:
+    """Giả lập Local MQTT Client: ghi lại lệnh downlink đã relay xuống node."""
+
+    def __init__(self) -> None:
+        self.commands: list[tuple] = []
+
+    def publish_command(self, node_id: str, payload: bytes) -> bool:
+        self.commands.append((node_id, payload))
+        return True
+
+
 async def main() -> int:
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cfg = Config(os.path.join(root, "config/gateway.yaml"),
@@ -56,12 +68,15 @@ async def main() -> int:
     nodes = NodeManager(cfg.gateway_id, cfg.enabled_nodes())
     pub = FakePublisher(state)
 
+    local = FakeLocalClient()
     ingest_q: asyncio.Queue = asyncio.Queue(maxsize=1000)
     db_q: asyncio.Queue = asyncio.Queue()
+    cmd_q: asyncio.Queue = asyncio.Queue(maxsize=1000)
     tasks = [
         asyncio.create_task(ingestion_worker(state, ingest_q, db_q, pub, nodes)),
         asyncio.create_task(database_worker(cfg.pipeline, db, db_q, state)),
         asyncio.create_task(store_and_forward_worker(cfg.store_forward, db, pub, state)),
+        asyncio.create_task(command_worker(cmd_q, local, nodes, state)),
     ]
 
     try:
@@ -101,6 +116,17 @@ async def main() -> int:
         await asyncio.sleep(1)
         assert state.stats.dropped == 2
         print("   OK: loai 2 tin loi")
+
+        # 5) dieu khien 2 chieu: relay lenh downlink xuong node
+        print("== Downlink: relay lenh xuong node ==")
+        cmd_q.put_nowait(("node-06", b'{"cmd":"relay","state":1}'))  # hop le
+        cmd_q.put_nowait(("node-99", b'{"cmd":"relay"}'))            # node la -> loai
+        cmd_q.put_nowait(("node-06", b'not-json'))                   # hong  -> loai
+        await asyncio.sleep(1)
+        assert state.stats.commands_relayed == 1, "phai relay 1 lenh hop le"
+        assert state.stats.commands_dropped == 2, "phai loai 2 lenh xau"
+        assert local.commands[0][0] == "node-06"
+        print(f"   OK: relay={state.stats.commands_relayed}, loai={state.stats.commands_dropped}")
 
         print("\n=> TAT CA KICH BAN PASS.")
         return 0

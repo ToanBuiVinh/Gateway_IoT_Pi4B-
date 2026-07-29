@@ -12,6 +12,7 @@ from .network_monitor import network_monitor_worker
 from .node_manager import NodeManager
 from .state import AppState
 from .workers import (
+    command_worker,
     database_worker,
     disk_cleanup_worker,
     ingestion_worker,
@@ -38,6 +39,7 @@ class Gateway:
         qmax = int(config.pipeline.get("ingest_queue_max", 10000))
         self.ingest_queue: asyncio.Queue = asyncio.Queue(maxsize=qmax)
         self.db_queue: asyncio.Queue = asyncio.Queue()
+        self.cmd_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)  # lệnh downlink
         # Được gán trong run() khi đã có event loop
         self.local: LocalMqttClient | None = None
         self.publisher: CloudPublisher | None = None
@@ -47,8 +49,9 @@ class Gateway:
         log.info("=== Khoi dong Gateway %s (%d node) ===",
                  self.config.gateway_id, len(self.config.enabled_nodes()))
 
-        # Hai MQTT client (§1)
-        self.publisher = CloudPublisher(self.config.cloud, loop, self.state)
+        # Hai MQTT client (§1). Cloud client kèm cmd_queue để nhận lệnh downlink.
+        self.publisher = CloudPublisher(
+            self.config.cloud, loop, self.state, command_queue=self.cmd_queue)
         self.local = LocalMqttClient(self.config.local_broker, loop, self.ingest_queue)
         self.publisher.start()
         self.local.start()
@@ -67,6 +70,9 @@ class Gateway:
             asyncio.create_task(network_monitor_worker(
                 self.config.network_monitor, self.config.cloud, self.state),
                 name="netmon"),
+            asyncio.create_task(command_worker(
+                self.cmd_queue, self.local, self.nodes, self.state),
+                name="command"),
             asyncio.create_task(disk_cleanup_worker(
                 self.config.maintenance, self.db), name="disk-cleanup"),
             asyncio.create_task(self._heartbeat(), name="heartbeat"),
@@ -91,11 +97,11 @@ class Gateway:
             pending = await asyncio.to_thread(self.db.pending_count)
             log.info(
                 "Nhip | cloud=%s | node online=%d/%d | nhan=%d thang=%d buffer=%d "
-                "gui_bu=%d loai=%d | cho gui=%d",
+                "gui_bu=%d loai=%d | lenh=%d | cho gui=%d",
                 "ON" if self.state.is_online else "OFF",
                 online, len(self.config.enabled_nodes()),
                 st.received, st.published_direct, st.buffered,
-                st.forwarded, st.dropped, pending,
+                st.forwarded, st.dropped, st.commands_relayed, pending,
             )
 
     def shutdown(self) -> None:

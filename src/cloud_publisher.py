@@ -22,14 +22,19 @@ log = logging.getLogger("gateway.cloud")
 
 class CloudPublisher:
     def __init__(self, cfg: Dict[str, Any], loop: asyncio.AbstractEventLoop,
-                 state: AppState) -> None:
+                 state: AppState,
+                 command_queue: "asyncio.Queue | None" = None) -> None:
         self.cfg = cfg
         self._loop = loop
         self._state = state
+        self._command_queue = command_queue
         self.enabled = bool(cfg.get("enabled", False))
         self.topic = cfg.get("publish_topic", "telemetry")
         self.qos = int(cfg.get("qos", 1))
         self.puback_timeout = float(cfg.get("puback_timeout_sec", 10))
+        # Downlink: subscribe lệnh từ cloud (điều khiển 2 chiều)
+        self.command_topic = cfg.get("command_topic", "")
+        self.command_qos = int(cfg.get("command_qos", 1))
 
         self._client = mqtt.Client(client_id="pi4b-gateway-cloud")
         if cfg.get("username"):
@@ -39,6 +44,7 @@ class CloudPublisher:
             self._client.tls_set(ca_certs=ca, cert_reqs=ssl.CERT_REQUIRED)
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
+        self._client.on_message = self._on_message
 
     # ------------------------------------------------------------------
     def start(self) -> None:
@@ -87,6 +93,11 @@ class CloudPublisher:
     def _on_connect(self, client, userdata, flags, rc):  # noqa: ANN001
         if rc == 0:
             self._loop.call_soon_threadsafe(self._state.set_online)
+            # (Re)subscribe topic lệnh downlink sau mỗi lần kết nối lại.
+            if self._command_queue is not None and self.command_topic:
+                sub = f"{self.command_topic.rstrip('/')}/+"
+                client.subscribe(sub, qos=self.command_qos)
+                log.info("Subscribe lenh downlink: %s", sub)
         else:
             log.error("Cloud connect that bai rc=%s", rc)
             self._loop.call_soon_threadsafe(self._state.set_offline)
@@ -95,3 +106,17 @@ class CloudPublisher:
         self._loop.call_soon_threadsafe(self._state.set_offline)
         if rc != 0:
             log.warning("Mat ket noi cloud (rc=%s), paho se reconnect", rc)
+
+    def _on_message(self, client, userdata, msg):  # noqa: ANN001
+        """Nhận lệnh từ cloud -> đẩy vào cmd_queue (bắc cầu vào event loop)."""
+        if self._command_queue is None:
+            return
+        node_id = msg.topic.split("/")[-1]
+        item = (node_id, msg.payload)
+        self._loop.call_soon_threadsafe(self._enqueue_command, item)
+
+    def _enqueue_command(self, item) -> None:  # noqa: ANN001
+        try:
+            self._command_queue.put_nowait(item)
+        except asyncio.QueueFull:
+            log.error("Command queue DAY -> bo lenh cho %s", item[0])

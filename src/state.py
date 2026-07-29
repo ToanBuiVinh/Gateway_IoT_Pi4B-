@@ -16,6 +16,8 @@ class Stats:
     buffered: int = 0          # ghi vào SQLite (offline/lỗi)
     forwarded: int = 0         # gửi bù thành công từ buffer
     dropped: int = 0           # bị loại (payload lỗi / node lạ)
+    commands_relayed: int = 0  # lệnh downlink đã relay xuống node
+    commands_dropped: int = 0  # lệnh bị loại (node lạ / lệnh hỏng)
 
 
 class AppState:

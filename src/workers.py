@@ -18,9 +18,10 @@ from .node_manager import NodeManager
 from .state import AppState
 
 if TYPE_CHECKING:
-    # Chỉ import lúc type-check: CloudPublisher kéo theo paho, còn lõi worker
-    # (ingestion/batching/store-forward) không cần paho để chạy/kiểm thử.
+    # Chỉ import lúc type-check: CloudPublisher/LocalMqttClient kéo theo paho, còn
+    # lõi worker không cần paho để chạy/kiểm thử.
     from .cloud_publisher import CloudPublisher
+    from .mqtt_local import LocalMqttClient
 
 log = logging.getLogger("gateway.workers")
 
@@ -172,7 +173,43 @@ async def store_and_forward_worker(
 
 
 # ======================================================================
-# 4) DISK CLEANUP WORKER: dọn đĩa khi vượt ngưỡng
+# 4) COMMAND WORKER: relay lệnh downlink từ cloud xuống node (điều khiển 2 chiều)
+# ======================================================================
+async def command_worker(
+    cmd_queue: "asyncio.Queue",
+    local: "LocalMqttClient",
+    nodes: NodeManager,
+    state: AppState,
+) -> None:
+    log.info("Command worker: san sang relay lenh downlink")
+    while True:
+        node_id, payload = await cmd_queue.get()
+        try:
+            if not nodes.known(node_id):
+                state.stats.commands_dropped += 1
+                log.warning("Lenh cho node LA: %s -> bo qua", node_id)
+                continue
+            # Kiểm tra payload là JSON hợp lệ trước khi relay (chống rác).
+            try:
+                json.loads(payload.decode("utf-8"))
+            except (ValueError, UnicodeDecodeError):
+                state.stats.commands_dropped += 1
+                log.warning("Lenh cho %s khong phai JSON hop le -> bo qua", node_id)
+                continue
+            # Relay xuống node qua broker cục bộ (asyncio.to_thread vì paho publish
+            # có thể chặn nhẹ khi hàng đợi đầy).
+            ok = await asyncio.to_thread(local.publish_command, node_id, payload)
+            if ok:
+                state.stats.commands_relayed += 1
+                log.info("Relay lenh -> node %s", node_id)
+            else:
+                state.stats.commands_dropped += 1
+        finally:
+            cmd_queue.task_done()
+
+
+# ======================================================================
+# 5) DISK CLEANUP WORKER: dọn đĩa khi vượt ngưỡng
 # ======================================================================
 async def disk_cleanup_worker(cfg: Dict[str, Any], db: Database) -> None:
     interval = float(cfg.get("disk_check_interval_sec", 300))
