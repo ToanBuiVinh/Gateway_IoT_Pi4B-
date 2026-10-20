@@ -47,6 +47,10 @@ gateway-cloud/
 
 ## Chạy
 
+**Windows (1 cú đúp chuột):** chạy `run_all.bat` — tự cài thư viện, sinh 10 payload
+MQTT + 10 Bundle FHIR, validate, sinh dashboard rồi mở `viewer\index.html` trên trình duyệt.
+
+**Thủ công (mọi nền tảng):**
 ```bash
 cd gateway-cloud
 pip install -r requirements.txt
@@ -54,7 +58,12 @@ pip install -r requirements.txt
 python tools/gen_samples.py     # sinh 10 payload MQTT
 python tools/gen_fhir.py        # sinh 10 Bundle FHIR
 python tests/test_contract.py   # validate 10 payload + mapper (10/10 PASS)
+python tools/gen_viewer.py      # sinh trang web viewer/index.html (tự đóng gói, offline)
 ```
+
+**Trang web dashboard** (`viewer/index.html`): nhúng sẵn dữ liệu 10 thiết bị — mở bằng
+double-click, không cần server. Hiển thị chỉ số, trạng thái validate, topic MQTT, số
+resource FHIR, và bảng [CẦN XÁC MINH]; bấm vào thẻ để xem raw JSON (MQTT + FHIR).
 
 Validate sâu hơn với HAPI FHIR R4 (tuỳ chọn):
 ```bash
