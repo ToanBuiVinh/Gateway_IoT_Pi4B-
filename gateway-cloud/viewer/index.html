@@ -251,30 +251,102 @@ function sampledOf(d){const m=(d.mqtt.measurements||[]).find(x=>x.sampled_data);
 function rasterOf(d){const m=(d.mqtt.measurements||[]).find(x=>x.raster);return m?m.raster:null;}
 
 // --- Hang doi ve canvas (ve sau khi da co kich thuoc layout) ---
-let DRAW=[],MDRAW=[],videos=[];
+let DRAW=[],MDRAW=[],videos=[],liveCharts=[];
+// Cap/doc kich thuoc canvas (cache theo be rong + dpr)
+function ensureSize(cv,cssH){
+  const w=cv.clientWidth||cv.parentNode.clientWidth||320;
+  if(cv._w!==w||cv._hh!==cssH){
+    const dpr=Math.min(2,window.devicePixelRatio||1);
+    cv.width=Math.round(w*dpr);cv.height=Math.round(cssH*dpr);
+    cv._ctx=cv.getContext("2d");cv._ctx.setTransform(dpr,0,0,dpr,0,0);
+    cv._ctx.imageSmoothingEnabled=true;cv._w=w;cv._hh=cssH;
+  }
+  return {ctx:cv._ctx,w,h:cssH};
+}
 function runDraws(){
   DRAW.forEach(fn=>{try{fn();}catch(e){}});
   if($("#overlay").getAttribute("aria-hidden")==="false")MDRAW.forEach(fn=>{try{fn();}catch(e){}});
 }
-// Vong lap phat video: ghep tung khung RGB tho -> hoat hinh
-function videoLoop(t){
+// Vong lap hoat hinh chung: video (khung RGB) + do thi song (vitals/ECG)
+function animLoop(t){
   videos=videos.filter(v=>v.cv.isConnected);
   for(const v of videos){
     const idx=Math.floor(t/1000*v.fps)%v.frames;
     const dispH=Math.round((v.cv.clientWidth||320)*v.H/v.W);
-    if(v.cv._h!==dispH||v.cv._w!==v.cv.clientWidth){
-      const dpr=Math.min(2,window.devicePixelRatio||1);
-      v.cv.width=Math.round((v.cv.clientWidth||320)*dpr);v.cv.height=Math.round(dispH*dpr);
-      v.ctx=v.cv.getContext("2d");v.ctx.setTransform(dpr,0,0,dpr,0,0);
-      v.ctx.imageSmoothingEnabled=true;v.cv._h=dispH;v.cv._w=v.cv.clientWidth;
-    }
-    v.ctx.drawImage(v.off[idx],0,0,v.cv.clientWidth||320,dispH);
-    v.ctx.fillStyle="rgba(210,235,255,.8)";v.ctx.font="10px monospace";
-    v.ctx.fillText("Khung "+(idx+1)+"/"+v.frames+" · "+v.W+"×"+v.H+" RGB thô",8,14);
+    const {ctx,w}=ensureSize(v.cv,dispH);
+    ctx.drawImage(v.off[idx],0,0,w,dispH);
+    ctx.fillStyle="rgba(210,235,255,.8)";ctx.font="10px monospace";
+    ctx.fillText("Khung "+(idx+1)+"/"+v.frames+" · "+v.W+"×"+v.H+" RGB thô",8,14);
   }
-  requestAnimationFrame(videoLoop);
+  liveCharts=liveCharts.filter(c=>c.cv.isConnected);
+  for(const c of liveCharts){try{c.fn(t);}catch(e){}}
+  requestAnimationFrame(animLoop);
 }
-requestAnimationFrame(videoLoop);
+requestAnimationFrame(animLoop);
+
+// --- DU LIEU DEMO DONG (mo phong quanh gia tri do, lap lien tuc) ---
+function makeStream(base,amp,n,seed){
+  const v=[];
+  for(let i=0;i<n;i++){
+    const x=i/n*2*Math.PI;
+    let val=base+amp*Math.sin(3*x+seed)+amp*0.4*Math.sin(7*x+seed*1.7);
+    val+=((Math.sin((i+1)*12.9898+seed*78.233)*43758.5453)%1-0.5)*amp*0.3; // nhieu nho
+    v.push(val);
+  }
+  return v;
+}
+const AMP_BY_UNIT={"%":1.6,"/min":6,"bpm":6,"mmHg":7,"Cel":0.25,"°C":0.25,"kg":0.2};
+const LINE_COLORS=["#38bdf8","#4ade80","#f472b6","#fbbf24","#a78bfa"];
+function buildStreams(summary){
+  const n=120;  // ~100+ diem demo
+  return summary.filter(r=>typeof r.value==="number").map((r,i)=>{
+    const amp=AMP_BY_UNIT[r.unit]!=null?AMP_BY_UNIT[r.unit]:Math.max(1,Math.abs(r.value)*0.04);
+    const v=makeStream(r.value,amp,n,i+1);
+    let mn=Math.min(...v),mx=Math.max(...v);const pad=(mx-mn)*0.18||1;mn-=pad;mx+=pad;
+    return {label:r.label,unit:r.unit,color:LINE_COLORS[i%LINE_COLORS.length],v,min:mn,max:mx};
+  });
+}
+// Monitor nhieu thong so: moi stream mot dai (band) cuon lien tuc
+function drawMonitor(cv,streams,cssH,t){
+  const {ctx,w,h}=ensureSize(cv,cssH);
+  ctx.fillStyle="#06151c";ctx.fillRect(0,0,w,h);
+  for(let x=0;x<w;x+=26){ctx.strokeStyle="#0e2b36";ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  const N=streams.length?streams[0].v.length:1,band=h/Math.max(1,streams.length),speed=22;
+  const off=t/1000*speed;
+  streams.forEach((s,si)=>{
+    const y0=si*band;
+    ctx.strokeStyle="#0e2b36";ctx.beginPath();ctx.moveTo(0,y0);ctx.lineTo(w,y0);ctx.stroke();
+    ctx.strokeStyle=s.color;ctx.lineWidth=1.7;ctx.lineJoin="round";ctx.beginPath();
+    for(let i=0;i<N;i++){
+      const idx=(Math.floor(off)+i)%N,val=s.v[idx];
+      const x=i/(N-1)*w,y=y0+band-6-((val-s.min)/(s.max-s.min))*(band-14);
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.stroke();
+    const cur=s.v[(Math.floor(off)+N-1)%N];
+    ctx.fillStyle=s.color;ctx.font="bold 12px monospace";
+    ctx.fillText(s.label+"  "+(Math.round(cur*10)/10)+" "+s.unit,8,y0+15);
+  });
+}
+// ECG cuon lien tuc (sweep) tu mau tho
+function drawEcgLive(cv,d,cssH,t){
+  const sd=sampledOf(d);if(!sd)return;
+  const s=sd.data.split(" ").map(Number),factor=sd.factor||1,N=s.length;
+  const {ctx,w,h}=ensureSize(cv,cssH);
+  ctx.fillStyle="#1b0e12";ctx.fillRect(0,0,w,h);
+  for(let x=0;x<w;x+=6){ctx.strokeStyle=(x%30===0)?"#5e2e3a":"#33202a";ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let y=0;y<h;y+=6){ctx.strokeStyle=(y%30===0)?"#5e2e3a":"#33202a";ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  const mid=h*0.52,gain=h*0.32,win=Math.min(N,Math.max(300,Math.floor(w*1.4)));
+  const off=Math.floor(t/1000*250);  // 250 mau/giay (~nua thoi gian thuc)
+  ctx.strokeStyle="#58e08f";ctx.lineWidth=1.6;ctx.lineJoin="round";ctx.beginPath();
+  for(let i=0;i<win;i++){
+    const idx=(off+i)%N,x=i/(win-1)*w,y=mid-(s[idx]*factor)*gain;
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  }
+  ctx.stroke();
+  ctx.fillStyle="rgba(255,200,210,.7)";ctx.font="10px monospace";
+  ctx.fillText("Lead "+(sd.lead||"II")+" · 500 Hz · cuộn liên tục",8,14);
+}
 // Giai ma raster RGB888 nhieu khung -> mang canvas tung khung
 function decodeFrames(r){
   const W=r.width,H=r.height,F=r.frame_count||1,bin=atob(r.data),fsize=W*H*3,offs=[];
@@ -388,10 +460,18 @@ function metaRows(pairs){
 // --- Vung truc quan theo loai thiet bi ---
 function buildViz(d,big,q){
   q=q||DRAW;const t=d.message_type;
-  if(t==="observation.vitals"||t==="observation.lab") return buildBars(d.summary);
+  if(t==="observation.lab") return buildBars(d.summary);   // xet nghiem 1 lan -> bieu do tinh
+  if(t==="observation.vitals"){
+    const streams=buildStreams(d.summary);
+    const cssH=big?Math.max(170,streams.length*60):Math.max(112,streams.length*46);
+    const wrap=el("div","viz"),cv=document.createElement("canvas");wrap.append(cv);
+    wrap.append(Object.assign(el("div","caption"),{textContent:"Monitor demo · "+(streams[0]?streams[0].v.length:0)+" điểm/thông số · cuộn liên tục (mô phỏng quanh giá trị đo)"}));
+    liveCharts.push({cv,fn:(tt)=>drawMonitor(cv,streams,cssH,tt)});
+    return wrap;
+  }
   if(t==="observation.waveform"){
     const wrap=el("div",big?"viz-lg ecg":"viz ecg"),cv=document.createElement("canvas");wrap.append(cv);
-    q.push(()=>drawEcg(cv,d,big?230:150));return wrap;
+    liveCharts.push({cv,fn:(tt)=>drawEcgLive(cv,d,big?230:150,tt)});return wrap;
   }
   if(t==="imaging.study"){
     const wrap=el("div",big?"viz-lg us":"viz us"),cv=document.createElement("canvas");wrap.append(cv);
@@ -430,7 +510,7 @@ function vizMeta(d){
 
 // --- The thiet bi ---
 function render(){
-  const g=$("#grid");g.innerHTML="";DRAW=[];videos=[];
+  const g=$("#grid");g.innerHTML="";DRAW=[];videos=[];liveCharts=[];
   DATA.devices.filter(d=>active==="all"||d.message_type===active).forEach(d=>{
     const c=el("div","card");
     const h=el("div","card-h");
