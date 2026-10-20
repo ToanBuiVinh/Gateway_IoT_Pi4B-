@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import os
 from typing import Any, Dict, List, Tuple
@@ -75,6 +77,17 @@ def validate_ranges(payload: Dict[str, Any]) -> List[str]:
         for comp in (meas.get("components") or []):
             cc = comp.get("code", {})
             check_value(cc.get("system"), cc.get("code"), comp.get("value"), comp.get("unit"))
+        # Toan ven du lieu diem anh tho: so byte giai ma phai = width*height (gray8)
+        r = meas.get("raster")
+        if r and r.get("encoding") == "base64" and r.get("pixel_format") == "gray8":
+            try:
+                nbytes = len(base64.b64decode(r["data"], validate=True))
+            except (binascii.Error, ValueError):
+                errs.append("[raster] data khong phai base64 hop le")
+                continue
+            expect = int(r["width"]) * int(r["height"])
+            if nbytes != expect:
+                errs.append(f"[raster] so byte {nbytes} != width*height {expect}")
     return errs
 
 

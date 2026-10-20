@@ -174,8 +174,9 @@ def to_bundle(payload: Dict[str, Any]) -> Dict[str, Any]:
         _finish(entries, dev_full, [rep_full])
 
     elif mtype == "imaging.study":
-        img_full = _map_imaging(payload, dev, effective, dev_full, entries)
-        rep_full = _add_diagnostic_report(dev, [], effective, entries, imaging_ref=img_full)
+        img_full, media_full = _map_imaging(payload, dev, effective, dev_full, entries)
+        rep_full = _add_diagnostic_report(dev, [], effective, entries, imaging_ref=img_full,
+                                          media_ref=media_full)
         _finish(entries, dev_full, [rep_full])
 
     elif mtype in ("media.audio", "media.video"):
@@ -235,7 +236,7 @@ def _map_waveform(payload, dev, effective, dev_full, entries) -> List[str]:
     return refs
 
 
-def _add_diagnostic_report(dev, result_refs, effective, entries, imaging_ref) -> str:
+def _add_diagnostic_report(dev, result_refs, effective, entries, imaging_ref, media_ref=None) -> str:
     rep = dev["report"]
     disp = rep["display"] + (" [CAN XAC MINH]" if rep.get("verify") else "")
     full = f"urn:uuid:report-{dev['device_type']}"
@@ -254,14 +255,19 @@ def _add_diagnostic_report(dev, result_refs, effective, entries, imaging_ref) ->
         res["result"] = [{"reference": r} for r in result_refs]
     if imaging_ref:
         res["imagingStudy"] = [{"reference": imaging_ref}]
+    if media_ref:
+        res["media"] = [{"link": {"reference": media_ref}}]
     entries.append(_entry(full, res, "DiagnosticReport"))
     return full
 
 
-def _map_imaging(payload, dev, effective, dev_full, entries) -> str:
+def _map_imaging(payload, dev, effective, dev_full, entries):
     full = f"urn:uuid:imaging-{dev['device_type']}"
     mod = dev["modality"]
-    media = next((m.get("media") for m in payload["measurements"] if m.get("media")), {}) or {}
+    meas = next((m for m in payload["measurements"] if m.get("media") or m.get("raster")),
+                payload["measurements"][0])
+    media = meas.get("media", {}) or {}
+    raster = meas.get("raster")
     res = {
         "resourceType": "ImagingStudy", "status": "available",
         "subject": {"reference": "urn:uuid:patient-1"},
@@ -275,7 +281,28 @@ def _map_imaging(payload, dev, effective, dev_full, entries) -> str:
     if media.get("url"):
         res["endpoint"] = [{"display": media["url"]}]
     entries.append(_entry(full, res, "ImagingStudy"))
-    return full
+
+    # Du lieu diem anh THO -> Media inline (base64). San xuat that dung DICOM. [CAN XAC MINH]
+    media_full = None
+    if raster:
+        media_full = f"urn:uuid:media-{dev['device_type']}"
+        ctype = (f"application/octet-stream; format={raster['pixel_format']};"
+                 f" width={raster['width']}; height={raster['height']}")
+        mres = {
+            "resourceType": "Media", "status": "completed",
+            "type": {"coding": [{"system": _MEDIA_TYPE_SYS, "code": "image"}]},
+            "subject": {"reference": "urn:uuid:patient-1"},
+            "encounter": {"reference": "urn:uuid:encounter-1"},
+            "createdDateTime": effective,
+            "device": {"reference": dev_full},
+            "height": raster["height"], "width": raster["width"],
+            "content": {"contentType": ctype, "data": raster["data"],
+                        "title": meas["code"].get("display", "Ultrasound frame")},
+        }
+        if media.get("body_site"):
+            mres["bodySite"] = {"text": media["body_site"]}
+        entries.append(_entry(media_full, mres, "Media"))
+    return full, media_full
 
 
 _MEDIA_TYPE_SYS = "http://terminology.hl7.org/CodeSystem/media-type"

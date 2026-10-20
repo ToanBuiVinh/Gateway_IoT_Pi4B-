@@ -121,6 +121,22 @@
               "truncated": { "type": "boolean" }
             }
           },
+          "raster": {
+            "type": ["object", "null"],
+            "description": "Du lieu diem anh THO (vd sieu am gray8). Phia hien thi tai tao thanh hinh anh.",
+            "required": ["pixel_format", "width", "height", "encoding", "data"],
+            "properties": {
+              "pixel_format": { "type": "string", "enum": ["gray8"] },
+              "width": { "type": "integer", "minimum": 1 },
+              "height": { "type": "integer", "minimum": 1 },
+              "encoding": { "type": "string", "enum": ["base64", "csv"] },
+              "data": { "type": "string" },
+              "geometry": { "type": "string", "enum": ["sector", "linear", "rect"] },
+              "depth_cm": { "type": "number" },
+              "frame_index": { "type": "integer", "minimum": 0 },
+              "frame_count": { "type": "integer", "minimum": 1 }
+            }
+          },
           "media": {
             "type": ["object", "null"],
             "required": ["content_type", "url"],

@@ -62,8 +62,17 @@ python tools/gen_viewer.py      # sinh trang web viewer/index.html (tự đóng 
 ```
 
 **Trang web dashboard** (`viewer/index.html`): nhúng sẵn dữ liệu 10 thiết bị — mở bằng
-double-click, không cần server. Hiển thị chỉ số, trạng thái validate, topic MQTT, số
-resource FHIR, và bảng [CẦN XÁC MINH]; bấm vào thẻ để xem raw JSON (MQTT + FHIR).
+double-click, không cần server. **Phần hiển thị tự xử lý dữ liệu thô thành hình ảnh/đồ thị**:
+- Số liệu (BP/SpO2/nhiệt độ/cân/LAB/glucose) → **biểu đồ thanh** theo khoảng hợp lệ.
+- **ECG** → **đồ thị sóng** PQRST vẽ từ mẫu tín hiệu thô (SampledData) trên lưới giấy đỏ.
+- **Siêu âm** → **ảnh tái tạo** trên canvas từ ma trận điểm ảnh thô (gray8 base64, sector B-mode).
+- **Ống nghe** → **đồ thị sóng âm** từ đường bao S1/S2.
+Bấm vào thẻ để xem lớn (tab Trực quan) + raw JSON (MQTT + FHIR).
+
+### Triết lý "đẩy dữ liệu thô"
+Thiết bị đẩy **dữ liệu thô** lên (ví dụ siêu âm = từng điểm ảnh `raster.data` base64,
+ECG = mảng mẫu `sampled_data.data`); phía hiển thị mới **xử lý kết hợp thành hình ảnh/đồ thị**.
+Validator kiểm tra toàn vẹn raster (số byte giải mã = `width×height`).
 
 Validate sâu hơn với HAPI FHIR R4 (tuỳ chọn):
 ```bash

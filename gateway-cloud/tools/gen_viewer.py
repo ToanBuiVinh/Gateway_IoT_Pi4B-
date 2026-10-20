@@ -46,6 +46,20 @@ def _code_display_map():
 CODE_DISPLAY = _code_display_map()
 
 
+def _range_map():
+    idx = {}
+    for dev in reg.DEVICES.values():
+        specs = list(dev.get("measurements", [])) + list(dev.get("components", [])) \
+            + list(dev.get("extra", []))
+        for s in specs:
+            if s.get("kt_min") is not None:
+                idx[(s["system"], s["code"])] = (s["kt_min"], s["kt_max"])
+    return idx
+
+
+RANGE = _range_map()
+
+
 def _summary_rows(payload):
     rows = []
     for meas in payload["measurements"]:
@@ -55,8 +69,10 @@ def _summary_rows(payload):
             for c in meas["components"]:
                 cc = c["code"]
                 label = CODE_DISPLAY.get((cc["system"], cc["code"]), cc["code"])
+                rng = RANGE.get((cc["system"], cc["code"]))
                 rows.append({"label": label, "value": c["value"],
-                             "unit": reg.UCUM_DISPLAY.get(c["unit"], c["unit"]), "verify": False})
+                             "unit": reg.UCUM_DISPLAY.get(c["unit"], c["unit"]), "verify": False,
+                             "min": rng[0] if rng else None, "max": rng[1] if rng else None})
         elif meas.get("sampled_data"):
             sd = meas["sampled_data"]
             rows.append({"label": code.get("display", code["code"]),
@@ -75,10 +91,12 @@ def _summary_rows(payload):
                          "value": md.get("content_type", "") + (" · " + " · ".join(extra) if extra else ""),
                          "unit": "", "verify": verify})
         elif meas.get("value") is not None:
+            rng = RANGE.get((code["system"], code["code"]))
             rows.append({"label": code.get("display", code["code"]),
                          "value": meas["value"],
                          "unit": reg.UCUM_DISPLAY.get(meas.get("unit"), meas.get("unit", "")),
-                         "verify": verify})
+                         "verify": verify,
+                         "min": rng[0] if rng else None, "max": rng[1] if rng else None})
     return rows
 
 
@@ -291,6 +309,31 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:15;background:va
 .tok-bool{color:var(--crit)} .tok-null{color:var(--muted)}
 footer{color:var(--muted);font-size:.74rem;padding:24px 0 40px;border-top:1px solid var(--border)}
 
+/* Vung truc quan: do thi / anh tai tao tu du lieu tho */
+.viz{margin:4px 16px 2px;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface-2)}
+.viz canvas{display:block;width:100%}
+.viz.ecg{background:#1b0e12}            /* nen do thi ECG kieu giay do */
+.viz.us{background:#000}                /* nen den cho sieu am */
+.viz .caption{font-size:.64rem;color:var(--muted);padding:4px 8px;font-family:var(--mono);border-top:1px solid var(--border);background:var(--surface)}
+/* Bieu do thanh cho so lieu */
+.bars{display:flex;flex-direction:column;gap:9px;padding:12px 16px 6px}
+.bar .top{display:flex;justify-content:space-between;align-items:baseline;font-size:.8rem;margin-bottom:3px;gap:8px}
+.bar .top .lab{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .top .v{font-family:var(--mono);font-weight:600}
+.bar .top .v .u{color:var(--muted);font-weight:400;font-size:.82em;margin-left:2px}
+.bar .track{height:8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);overflow:hidden;position:relative}
+.bar .fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent));border-radius:999px}
+.bar.vf .fill{background:var(--warn)}
+.bar .rng{display:flex;justify-content:space-between;font-size:.6rem;color:var(--muted);font-family:var(--mono);margin-top:2px}
+/* Khung video */
+.vidbox{position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,#1a2730,#0d151b);display:flex;align-items:center;justify-content:center}
+.vidbox .play{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.25)}
+.vidbox .play::after{content:"";border-left:14px solid #fff;border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:4px}
+.vidbox .ov{position:absolute;left:8px;bottom:6px;font-family:var(--mono);font-size:.62rem;color:#cfe;opacity:.85}
+.viz-lg{width:100%;background:#000;border-radius:10px;overflow:hidden}
+.viz-lg.ecg{background:#1b0e12}
+.viz-lg canvas{display:block;width:100%}
+
 @media (max-width:720px){.tiles{grid-template-columns:repeat(2,1fr)}.head-meta{width:100%;margin-left:0}}
 @media (max-width:420px){.grid{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -327,10 +370,12 @@ footer{color:var(--muted);font-size:.74rem;padding:24px 0 40px;border-top:1px so
     <div class="modal-h"><span class="id" id="m-id"></span><span class="mtype" id="m-type" style="margin:0"></span>
       <button class="x" id="m-close" type="button" aria-label="Đóng">×</button></div>
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" data-tab="summary" aria-selected="true">Chỉ số</button>
+      <button class="tab" role="tab" data-tab="visual" aria-selected="true">Trực quan</button>
+      <button class="tab" role="tab" data-tab="summary" aria-selected="false">Chỉ số</button>
       <button class="tab" role="tab" data-tab="mqtt" aria-selected="false">MQTT payload</button>
       <button class="tab" role="tab" data-tab="fhir" aria-selected="false">FHIR Bundle</button>
     </div>
+    <div class="code" id="m-visual" hidden></div>
     <pre class="code" id="m-body"></pre>
   </div>
 </div>
@@ -359,6 +404,7 @@ $("#gen").textContent = DATA.generated_at;
     const next=(cur==="dark"||(!cur&&prefDark))?"light":"dark";
     document.documentElement.setAttribute("data-theme",next);
     try{localStorage.setItem("mgw-theme",next);}catch(e){}
+    if(window.runDraws)runDraws();
   });
 })();
 
@@ -384,44 +430,178 @@ types.forEach(t=>{
   $("#filters").append(b);
 });
 
-// --- The thiet bi ---
+// --- Tien ich ---
 function fmtVal(v){return typeof v==="number"?new Intl.NumberFormat("en-US").format(v):v;}
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||"#888";}
+function sampledOf(d){const m=(d.mqtt.measurements||[]).find(x=>x.sampled_data);return m?m.sampled_data:null;}
+function rasterOf(d){const m=(d.mqtt.measurements||[]).find(x=>x.raster);return m?m.raster:null;}
+
+// --- Hang doi ve canvas (ve sau khi da co kich thuoc layout) ---
+let DRAW=[],MDRAW=[];
+function runDraws(){
+  DRAW.forEach(fn=>{try{fn();}catch(e){}});
+  if($("#overlay").getAttribute("aria-hidden")==="false")MDRAW.forEach(fn=>{try{fn();}catch(e){}});
+}
+function fit(cv,cssH){
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  const w=cv.clientWidth||cv.parentNode.clientWidth||320;
+  cv.width=Math.round(w*dpr);cv.height=Math.round(cssH*dpr);
+  const ctx=cv.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h:cssH};
+}
+
+// --- XU LY DU LIEU THO -> DO THI / ANH ---
+// 1) ECG: mau tin hieu tho -> do thi song tren luoi giay do
+function drawEcg(cv,d,cssH){
+  const sd=sampledOf(d);if(!sd)return;
+  const s=sd.data.split(" ").map(Number),factor=sd.factor||1;
+  const {ctx,w,h}=fit(cv,cssH||150);
+  ctx.fillStyle="#1b0e12";ctx.fillRect(0,0,w,h);
+  // luoi: o nho 6px, o lon 30px
+  ctx.lineWidth=1;
+  for(let x=0;x<w;x+=6){ctx.strokeStyle=(x%30===0)?"#5e2e3a":"#33202a";ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let y=0;y<h;y+=6){ctx.strokeStyle=(y%30===0)?"#5e2e3a":"#33202a";ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  // ve song (mV -> pixel)
+  const mid=h*0.52,gain=h*0.32; // ~1mV = 0.32 chieu cao
+  ctx.strokeStyle="#58e08f";ctx.lineWidth=1.6;ctx.lineJoin="round";ctx.beginPath();
+  const N=s.length,stride=Math.max(1,Math.floor(N/(w*2)));
+  let first=true;
+  for(let i=0;i<N;i+=stride){
+    const x=i/(N-1)*w,y=mid-(s[i]*factor)*gain;
+    if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.fillStyle="rgba(255,200,210,.7)";ctx.font="10px monospace";
+  ctx.fillText("Lead "+(sd.lead||"II")+" · "+sd.frequency_hz+" Hz · "+N+" mẫu thô · 25 mm/s",8,14);
+}
+// 2) SIEU AM: tung diem anh (gray8) -> tai tao anh
+function drawUs(cv,d){
+  const r=rasterOf(d);if(!r)return;
+  const W=r.width,H=r.height,bin=atob(r.data);
+  const off=document.createElement("canvas");off.width=W;off.height=H;
+  const octx=off.getContext("2d"),img=octx.createImageData(W,H);
+  for(let i=0;i<W*H;i++){const v=bin.charCodeAt(i);const o=i*4;img.data[o]=v;img.data[o+1]=v;img.data[o+2]=v;img.data[o+3]=255;}
+  octx.putImageData(img,0,0);
+  const dispH=Math.round((cv.clientWidth||320)*H/W);
+  const {ctx,w,h}=fit(cv,dispH);
+  ctx.fillStyle="#000";ctx.fillRect(0,0,w,h);
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+  ctx.drawImage(off,0,0,w,h);
+  ctx.fillStyle="rgba(200,230,240,.82)";ctx.font="10px monospace";
+  ctx.fillText("US "+W+"×"+H+" gray8 · tái tạo từ "+(W*H).toLocaleString()+" điểm ảnh thô",8,15);
+  if(r.depth_cm){ // thuoc do sau ben phai
+    ctx.strokeStyle="rgba(200,230,240,.5)";ctx.fillStyle="rgba(200,230,240,.7)";
+    for(let k=0;k<=r.depth_cm;k+=2){const y=k/r.depth_cm*(h-18)+4;ctx.beginPath();ctx.moveTo(w-6,y);ctx.lineTo(w-2,y);ctx.stroke();if(k%4===0)ctx.fillText(k,w-22,y+3);}
+  }
+}
+// 3) AM THANH (ong nghe): duong bao tho -> do thi song am
+function drawAudio(cv,d){
+  const sd=sampledOf(d);if(!sd)return;
+  const s=sd.data.split(" ").map(Number),{ctx,w,h}=fit(cv,92);
+  ctx.fillStyle=cssVar("--surface-2");ctx.fillRect(0,0,w,h);
+  const mid=h/2,N=s.length,g=(h*0.42)/100;
+  ctx.fillStyle=cssVar("--accent-weak");ctx.beginPath();ctx.moveTo(0,mid);
+  for(let i=0;i<N;i++)ctx.lineTo(i/(N-1)*w,mid-s[i]*g);
+  for(let i=N-1;i>=0;i--)ctx.lineTo(i/(N-1)*w,mid+s[i]*g);
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle=cssVar("--accent");ctx.lineWidth=1.3;ctx.beginPath();
+  for(let i=0;i<N;i++){const x=i/(N-1)*w,y=mid-s[i]*g;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.stroke();
+  ctx.fillStyle=cssVar("--muted");ctx.font="10px monospace";ctx.fillText("Envelope S1/S2 · "+N+" điểm thô",8,13);
+}
+
+// --- Bieu do thanh cho so lieu ---
+function buildBars(summary){
+  const box=el("div","bars");
+  summary.forEach(r=>{
+    const b=el("div","bar"+(r.verify?" vf":""));
+    const top=el("div","top");
+    top.append(el("span","lab",r.label));
+    const v=el("span","v");v.append(document.createTextNode(fmtVal(r.value)));
+    if(r.unit)v.append(Object.assign(el("span","u"),{textContent:r.unit}));
+    top.append(v);b.append(top);
+    if(typeof r.value==="number"&&r.min!=null&&r.max!=null){
+      const frac=Math.max(0,Math.min(1,(r.value-r.min)/(r.max-r.min)));
+      const track=el("div","track"),fill=el("div","fill");fill.style.width=(frac*100).toFixed(1)+"%";
+      track.append(fill);b.append(track);
+      const rng=el("div","rng");rng.append(el("span",null,String(r.min)),el("span",null,"KT"),el("span",null,String(r.max)));
+      b.append(rng);
+    }
+    box.append(b);
+  });
+  return box;
+}
+function metaRows(pairs){
+  const rows=el("div","rows");
+  pairs.forEach(([k,val])=>{
+    const row=el("div","row");row.append(el("div","lab",k));
+    row.append(Object.assign(el("div","val"),{textContent:val}));rows.append(row);
+  });
+  return rows;
+}
+
+// --- Vung truc quan theo loai thiet bi ---
+function buildViz(d,big,q){
+  q=q||DRAW;const t=d.message_type;
+  if(t==="observation.vitals"||t==="observation.lab") return buildBars(d.summary);
+  if(t==="observation.waveform"){
+    const wrap=el("div",big?"viz-lg ecg":"viz ecg"),cv=document.createElement("canvas");wrap.append(cv);
+    q.push(()=>drawEcg(cv,d,big?230:150));return wrap;
+  }
+  if(t==="imaging.study"){
+    const wrap=el("div",big?"viz-lg us":"viz us"),cv=document.createElement("canvas");wrap.append(cv);
+    q.push(()=>drawUs(cv,d));return wrap;
+  }
+  if(t==="media.audio"){
+    const wrap=el("div","viz"),cv=document.createElement("canvas");wrap.append(cv);
+    wrap.append(Object.assign(el("div","caption"),{textContent:"Nghe tim · tái tạo đồ thị từ envelope âm thô"}));
+    q.push(()=>drawAudio(cv,d));return wrap;
+  }
+  if(t==="media.video"){
+    const md=(d.mqtt.measurements[0].media)||{};
+    const wrap=el("div","viz"),box=el("div","vidbox");box.append(el("div","play"));
+    box.append(Object.assign(el("div","ov"),{textContent:(md.width||"")+"×"+(md.height||"")+" · "+(md.duration_sec||"?")+"s"}));
+    wrap.append(box);wrap.append(Object.assign(el("div","caption"),{textContent:"Video telemedicine (tham chiếu URL — không đẩy pixel thô)"}));
+    return wrap;
+  }
+  return el("div");
+}
+function vizMeta(d){
+  const t=d.message_type,md=(d.mqtt.measurements.find(m=>m.media)||{}).media||{};
+  if(t==="observation.waveform"){const hr=d.summary.find(r=>/rate|mạch|nhịp/i.test(r.label));return hr?metaRows([[hr.label,fmtVal(hr.value)+" "+hr.unit]]):null;}
+  if(t==="imaging.study")return metaRows([["Modality",md.modality||"US"],["Số ảnh",String(md.number_of_instances||1)],["Vị trí",md.body_site||"—"]]);
+  if(t==="media.audio")return metaRows([["Thời lượng",(md.duration_sec||"?")+" s"],["Vị trí",md.body_site||"—"]]);
+  if(t==="media.video")return metaRows([["Độ phân giải",(md.width||"?")+"×"+(md.height||"?")],["Thời lượng",(md.duration_sec||"?")+" s"],["Dung lượng",md.size_bytes?Math.round(md.size_bytes/1024)+" KB":"—"]]);
+  return null;
+}
+
+// --- The thiet bi ---
 function render(){
-  const g=$("#grid");g.innerHTML="";
+  const g=$("#grid");g.innerHTML="";DRAW=[];
   DATA.devices.filter(d=>active==="all"||d.message_type===active).forEach(d=>{
     const c=el("div","card");
-    // header
     const h=el("div","card-h");
     const idbox=el("div");idbox.append(el("div","id",d.device_id),el("div","ty",d.device_type+" · "+d.connection.toUpperCase()));
     const pill=el("span","pill "+(d.valid?"ok":"warn"));
     pill.append(el("span","dot"),document.createTextNode(d.valid?"hợp lệ":"lỗi"));
     h.append(idbox,pill);
-    c.append(h, Object.assign(el("span","mtype",d.message_type),{}));
-    // rows
-    const rows=el("div","rows");
-    d.summary.forEach(r=>{
-      const row=el("div","row"+(r.verify?" vf":""));
-      row.append(el("div","lab",r.label));
-      const val=el("div","val");val.append(document.createTextNode(fmtVal(r.value)));
-      if(r.unit) val.append(Object.assign(el("span","u"),{textContent:r.unit}));
-      row.append(val);rows.append(row);
-    });
-    c.append(rows);
-    // topic
+    c.append(h,el("span","mtype",d.message_type));
+    c.append(buildViz(d,false,DRAW));
+    const mr=vizMeta(d);if(mr)c.append(mr);
     c.append(Object.assign(el("div","topic"),{textContent:d.topic}));
-    // fhir resources
     const res=el("div","res");
     Object.entries(d.fhir_resources).forEach(([k,v])=>res.append(el("span",null,v>1?`${k}×${v}`:k)));
     c.append(res);
-    // footer buttons
     const f=el("div","card-f");
-    const b1=el("button","btn","MQTT payload");b1.type="button";b1.onclick=()=>openModal(d,"mqtt");
-    const b2=el("button","btn","FHIR Bundle");b2.type="button";b2.onclick=()=>openModal(d,"fhir");
+    const b1=el("button","btn","MQTT payload");b1.type="button";b1.onclick=e=>{e.stopPropagation();openModal(d,"mqtt");};
+    const b2=el("button","btn","FHIR Bundle");b2.type="button";b2.onclick=e=>{e.stopPropagation();openModal(d,"fhir");};
     f.append(b1,b2);c.append(f);
-    c.style.cursor="default";
+    c.style.cursor="pointer";c.title="Xem trực quan";c.onclick=()=>openModal(d,"visual");
     g.append(c);
   });
+  requestAnimationFrame(runDraws);
 }
+let rT;window.addEventListener("resize",()=>{clearTimeout(rT);rT=setTimeout(runDraws,150);});
 
 // --- Verify table ---
 $("#vcount").textContent=DATA.verify_items.length+" mục";
@@ -447,6 +627,15 @@ function hl(obj){
 function showTab(t){
   [...document.querySelectorAll(".tab")].forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t?"true":"false"));
   if(!cur)return;
+  const vis=$("#m-visual"),body=$("#m-body");
+  if(t==="visual"){
+    body.hidden=true;vis.hidden=false;vis.innerHTML="";MDRAW=[];
+    vis.append(buildViz(cur,true,MDRAW));
+    const mr=vizMeta(cur);if(mr)vis.append(mr);
+    requestAnimationFrame(()=>MDRAW.forEach(fn=>{try{fn();}catch(e){}}));
+    return;
+  }
+  vis.hidden=true;body.hidden=false;
   if(t==="summary"){
     const lines=cur.summary.map(r=>`${r.label}: ${fmtVal(r.value)} ${r.unit}${r.verify?"  [CAN XAC MINH]":""}`).join("\n");
     $("#m-body").innerHTML=`<span class="tok-key">Thiết bị</span> ${cur.device_id} — ${cur.device_type}\n`

@@ -93,15 +93,30 @@ def meas_waveform(spec: Dict[str, Any], sampled: Dict[str, Any]) -> Dict[str, An
     }
 
 
-def meas_media(code: Dict[str, Any], media: Dict[str, Any]) -> Dict[str, Any]:
+def meas_media(code: Dict[str, Any], media: Dict[str, Any],
+               sampled: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     c = {"system": code["system"], "code": code["code"],
          "display": code["display"] + (" [CAN XAC MINH]" if code.get("verify") else "")}
-    return {
+    item = {
         "code": c,
         "status": "final",
         "media": media,
         "device_flags": {},
     }
+    if sampled is not None:
+        item["sampled_data"] = sampled   # duong bao song tho de hien thi do thi
+    return item
+
+
+def meas_raster(code: Dict[str, Any], raster: Dict[str, Any],
+                media: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Phan tu chua DU LIEU DIEM ANH THO (vd sieu am gray8)."""
+    c = {"system": code["system"], "code": code["code"],
+         "display": code["display"] + (" [CAN XAC MINH]" if code.get("verify") else "")}
+    item = {"code": c, "status": "final", "raster": raster, "device_flags": {}}
+    if media is not None:
+        item["media"] = media
+    return item
 
 
 def build_envelope(device_id: str, message_type: str, timestamps: Dict[str, Any],
