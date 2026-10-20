@@ -470,48 +470,51 @@ function animLoop(t){
 }
 requestAnimationFrame(animLoop);
 
-// --- DU LIEU DEMO DONG (mo phong quanh gia tri do, lap lien tuc) ---
-function makeStream(base,amp,n,seed){
-  const v=[];
-  for(let i=0;i<n;i++){
-    const x=i/n*2*Math.PI;
-    let val=base+amp*Math.sin(3*x+seed)+amp*0.4*Math.sin(7*x+seed*1.7);
-    val+=((Math.sin((i+1)*12.9898+seed*78.233)*43758.5453)%1-0.5)*amp*0.3; // nhieu nho
-    v.push(val);
-  }
-  return v;
-}
+// ================================================================
+//  ĐẨY DỮ LIỆU LÊN (PUSH) — MỖI 500ms MỘT DỮ LIỆU
+//  Mô phỏng thiết bị gửi 1 điểm đo mỗi 500ms. Mỗi lần đẩy = pushOne().
+// ================================================================
+const N_POINTS=120;    // cửa sổ hiển thị (số điểm trên đồ thị)
+const PUSH_MS=500;     // CHU KỲ ĐẨY: 500ms cho 1 dữ liệu
 const AMP_BY_UNIT={"%":1.6,"/min":6,"bpm":6,"mmHg":7,"Cel":0.25,"°C":0.25,"kg":0.2};
 const LINE_COLORS=["#38bdf8","#4ade80","#f472b6","#fbbf24","#a78bfa"];
-function buildStreams(summary){
-  const n=120;  // ~100+ diem demo
-  return summary.filter(r=>typeof r.value==="number").map((r,i)=>{
-    const amp=AMP_BY_UNIT[r.unit]!=null?AMP_BY_UNIT[r.unit]:Math.max(1,Math.abs(r.value)*0.04);
-    const v=makeStream(r.value,amp,n,i+1);
-    let mn=Math.min(...v),mx=Math.max(...v);const pad=(mx-mn)*0.18||1;mn-=pad;mx+=pad;
-    return {label:r.label,unit:r.unit,color:LINE_COLORS[i%LINE_COLORS.length],v,min:mn,max:mx};
-  });
+let pushStreams=[];    // các dòng vitals đang hiển thị (nhận dữ liệu đẩy lên)
+
+// >>> ĐẨY 1 DỮ LIỆU LÊN: sinh giá trị đo mới rồi nối vào buffer <<<
+function pushOne(st){
+  st.phase+=0.35;
+  let v=st.base+st.amp*Math.sin(st.phase)+st.amp*0.4*Math.sin(st.phase*2.3)
+        +(Math.random()-0.5)*st.amp*0.5;
+  st.buf.push(v);                       // thêm điểm mới (mới nhất ở cuối)
+  if(st.buf.length>N_POINTS) st.buf.shift();   // bỏ điểm cũ nhất
+  st.cur=v;
 }
-// Monitor nhieu thong so: moi stream mot dai (band) cuon lien tuc
-function drawMonitor(cv,streams,cssH,t){
+function newStream(label,unit,color,base,amp){
+  const st={label,unit,color,base,amp,phase:Math.random()*6.28,buf:[],cur:base,
+            min:base-amp*2.4,max:base+amp*2.4};
+  for(let i=0;i<N_POINTS;i++) pushOne(st);     // nạp đầy cửa sổ ban đầu
+  return st;
+}
+
+// === BỘ ĐẾM ĐẨY DỮ LIỆU: cứ mỗi 500ms đẩy 1 điểm cho MỌI dòng đang chạy ===
+setInterval(()=>{ for(const s of pushStreams) pushOne(s); }, PUSH_MS);
+// ================================================================
+
+// Monitor nhieu thong so: moi stream mot dai (band), ve theo buffer hien tai
+function drawMonitor(cv,streams,cssH){
   const {ctx,w,h}=ensureSize(cv,cssH);
   ctx.fillStyle="#06151c";ctx.fillRect(0,0,w,h);
   for(let x=0;x<w;x+=26){ctx.strokeStyle="#0e2b36";ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
-  const N=streams.length?streams[0].v.length:1,band=h/Math.max(1,streams.length),speed=22;
-  const off=t/1000*speed;
+  const band=h/Math.max(1,streams.length);
   streams.forEach((s,si)=>{
-    const y0=si*band;
+    const y0=si*band,N=s.buf.length;
+    const yOf=val=>y0+band-6-Math.max(0,Math.min(1,(val-s.min)/(s.max-s.min)))*(band-14);
     ctx.strokeStyle="#0e2b36";ctx.beginPath();ctx.moveTo(0,y0);ctx.lineTo(w,y0);ctx.stroke();
     ctx.strokeStyle=s.color;ctx.lineWidth=1.7;ctx.lineJoin="round";ctx.beginPath();
-    for(let i=0;i<N;i++){
-      const idx=(Math.floor(off)+i)%N,val=s.v[idx];
-      const x=i/(N-1)*w,y=y0+band-6-((val-s.min)/(s.max-s.min))*(band-14);
-      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
-    }
+    for(let i=0;i<N;i++){const x=i/(N-1)*w;i?ctx.lineTo(x,yOf(s.buf[i])):ctx.moveTo(x,yOf(s.buf[i]));}
     ctx.stroke();
-    const cur=s.v[(Math.floor(off)+N-1)%N];
-    ctx.fillStyle=s.color;ctx.font="bold 12px monospace";
-    ctx.fillText(s.label+"  "+(Math.round(cur*10)/10)+" "+s.unit,8,y0+15);
+    ctx.fillStyle=s.color;ctx.beginPath();ctx.arc(w-2,yOf(s.cur),2.6,0,6.28);ctx.fill();  // điểm mới nhất
+    ctx.font="bold 12px monospace";ctx.fillText(s.label+"  "+(Math.round(s.cur*10)/10)+" "+s.unit,8,y0+15);
   });
 }
 // ECG cuon lien tuc (sweep) tu mau tho
@@ -648,11 +651,16 @@ function buildViz(d,big,q){
   q=q||DRAW;const t=d.message_type;
   if(t==="observation.lab") return buildBars(d.summary);   // xet nghiem 1 lan -> bieu do tinh
   if(t==="observation.vitals"){
-    const streams=buildStreams(d.summary);
+    const rows=d.summary.filter(r=>typeof r.value==="number");
+    const streams=rows.map((r,i)=>{
+      const amp=AMP_BY_UNIT[r.unit]!=null?AMP_BY_UNIT[r.unit]:Math.max(1,Math.abs(r.value)*0.04);
+      const st=newStream(r.label,r.unit,LINE_COLORS[i%LINE_COLORS.length],r.value,amp);
+      pushStreams.push(st);return st;   // dang ky nhan du lieu day len moi 500ms
+    });
     const cssH=big?Math.max(170,streams.length*60):Math.max(112,streams.length*46);
     const wrap=el("div","viz"),cv=document.createElement("canvas");wrap.append(cv);
-    wrap.append(Object.assign(el("div","caption"),{textContent:"Monitor demo · "+(streams[0]?streams[0].v.length:0)+" điểm/thông số · cuộn liên tục (mô phỏng quanh giá trị đo)"}));
-    liveCharts.push({cv,fn:(tt)=>drawMonitor(cv,streams,cssH,tt)});
+    wrap.append(Object.assign(el("div","caption"),{textContent:"Monitor demo · đẩy 1 điểm / "+PUSH_MS+"ms · cửa sổ "+N_POINTS+" điểm (mô phỏng)"}));
+    liveCharts.push({cv,fn:()=>drawMonitor(cv,streams,cssH)});
     return wrap;
   }
   if(t==="observation.waveform"){
@@ -696,7 +704,7 @@ function vizMeta(d){
 
 // --- The thiet bi ---
 function render(){
-  const g=$("#grid");g.innerHTML="";DRAW=[];videos=[];liveCharts=[];
+  const g=$("#grid");g.innerHTML="";DRAW=[];videos=[];liveCharts=[];pushStreams=[];
   DATA.devices.filter(d=>active==="all"||d.message_type===active).forEach(d=>{
     const c=el("div","card");
     const h=el("div","card-h");
