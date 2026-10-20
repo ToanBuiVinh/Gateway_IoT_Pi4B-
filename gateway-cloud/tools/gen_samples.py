@@ -100,6 +100,31 @@ def _ultrasound_gray8(w=176, h=132, seed=7):
 
 
 # ---------------------------------------------------------------------
+# DU LIEU THO: CAMERA — chuoi khung RGB888 (tung khung, nen ghep thanh video)
+# ---------------------------------------------------------------------
+def _camera_rgb_frames(w=96, h=54, frames=6, seed=5):
+    rng = random.Random(seed)
+    buf = bytearray()
+    for f in range(frames):
+        cx = w * (0.34 + 0.10 * (f / max(1, frames - 1)))   # doi tuong dich chuyen
+        cy = h * 0.54
+        for y in range(h):
+            for x in range(w):
+                bg = (18 + 26 * y // h, 40 + 46 * y // h, 56 + 40 * y // h)  # nen phong kham
+                dd = ((x - cx) / (w * 0.17)) ** 2 + ((y - cy) / (h * 0.30)) ** 2
+                if dd < 1.0:
+                    sh = 1 - 0.42 * dd
+                    r, g, b = int(205 * sh), int(172 * sh), int(150 * sh)      # mau da
+                else:
+                    r, g, b = bg
+                n = rng.randint(-6, 6)
+                buf.append(max(0, min(255, r + n)))
+                buf.append(max(0, min(255, g + n)))
+                buf.append(max(0, min(255, b + n)))
+    return w, h, frames, base64.b64encode(bytes(buf)).decode("ascii")
+
+
+# ---------------------------------------------------------------------
 # DU LIEU THO: SONG AM TIM (envelope S1/S2) cho ong nghe
 # ---------------------------------------------------------------------
 def _heart_audio_envelope(duration_s=15.0, npts=360, hr=72, seed=11):
@@ -192,18 +217,25 @@ def build_all():
         [C.meas_waveform(d["waveform"], sampled), C.meas_numeric(d["extra"][0], 72)],
         sequence_no=10239, message_id="d4e5f607-5f92-4ab0-9162-5f6071829304")
 
-    # 7) CAM-04 — media.video
+    # 7) CAM-04 — media.video: DU LIEU DIEM ANH THO tung khung RGB888 + metadata clip day du
     d = reg.DEVICES["CAM-04"]
+    cw, ch, cf, cdata = _camera_rgb_frames()
     out["cam04"] = C.build_envelope(
         "CAM-04", "media.video",
         ts("2026-10-20T08:58:00.000+07:00", "2026-10-20T08:58:02.000+07:00", "2026-10-20T08:58:03.000+07:00"),
-        [C.meas_media(d["media"]["code"], {
-            "content_type": "video/mp4",
-            "url": "s3://clinic001-media/CLINIC001/BN-2026-000123/CAM-04/clip-10240.mp4",
-            "size_bytes": 10485760, "duration_sec": 12.0,
-            "width": 1280, "height": 720, "frames": 360,
-            "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
-        })],
+        [C.meas_raster(d["media"]["code"],
+            raster={
+                "pixel_format": "rgb888", "width": cw, "height": ch,
+                "encoding": "base64", "geometry": "rect",
+                "frame_index": 0, "frame_count": cf, "data": cdata,
+            },
+            media={
+                "content_type": "video/mp4",
+                "url": "s3://clinic001-media/CLINIC001/BN-2026-000123/CAM-04/clip-10240.mp4",
+                "size_bytes": 10485760, "duration_sec": 12.0,
+                "width": 1280, "height": 720, "frames": 360,
+                "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+            })],
         sequence_no=10240, message_id="e5f60718-6093-4bc1-a273-60718293a415")
 
     # 8) ECH-06 — imaging.study: DU LIEU DIEM ANH THO (gray8 sector) + metadata DICOM

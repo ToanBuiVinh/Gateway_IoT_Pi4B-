@@ -126,7 +126,7 @@
             "description": "Du lieu diem anh THO (vd sieu am gray8). Phia hien thi tai tao thanh hinh anh.",
             "required": ["pixel_format", "width", "height", "encoding", "data"],
             "properties": {
-              "pixel_format": { "type": "string", "enum": ["gray8"] },
+              "pixel_format": { "type": "string", "enum": ["gray8", "rgb888"] },
               "width": { "type": "integer", "minimum": 1 },
               "height": { "type": "integer", "minimum": 1 },
               "encoding": { "type": "string", "enum": ["base64", "csv"] },

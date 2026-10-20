@@ -437,10 +437,41 @@ function sampledOf(d){const m=(d.mqtt.measurements||[]).find(x=>x.sampled_data);
 function rasterOf(d){const m=(d.mqtt.measurements||[]).find(x=>x.raster);return m?m.raster:null;}
 
 // --- Hang doi ve canvas (ve sau khi da co kich thuoc layout) ---
-let DRAW=[],MDRAW=[];
+let DRAW=[],MDRAW=[],videos=[];
 function runDraws(){
   DRAW.forEach(fn=>{try{fn();}catch(e){}});
   if($("#overlay").getAttribute("aria-hidden")==="false")MDRAW.forEach(fn=>{try{fn();}catch(e){}});
+}
+// Vong lap phat video: ghep tung khung RGB tho -> hoat hinh
+function videoLoop(t){
+  videos=videos.filter(v=>v.cv.isConnected);
+  for(const v of videos){
+    const idx=Math.floor(t/1000*v.fps)%v.frames;
+    const dispH=Math.round((v.cv.clientWidth||320)*v.H/v.W);
+    if(v.cv._h!==dispH||v.cv._w!==v.cv.clientWidth){
+      const dpr=Math.min(2,window.devicePixelRatio||1);
+      v.cv.width=Math.round((v.cv.clientWidth||320)*dpr);v.cv.height=Math.round(dispH*dpr);
+      v.ctx=v.cv.getContext("2d");v.ctx.setTransform(dpr,0,0,dpr,0,0);
+      v.ctx.imageSmoothingEnabled=true;v.cv._h=dispH;v.cv._w=v.cv.clientWidth;
+    }
+    v.ctx.drawImage(v.off[idx],0,0,v.cv.clientWidth||320,dispH);
+    v.ctx.fillStyle="rgba(210,235,255,.8)";v.ctx.font="10px monospace";
+    v.ctx.fillText("Khung "+(idx+1)+"/"+v.frames+" · "+v.W+"×"+v.H+" RGB thô",8,14);
+  }
+  requestAnimationFrame(videoLoop);
+}
+requestAnimationFrame(videoLoop);
+// Giai ma raster RGB888 nhieu khung -> mang canvas tung khung
+function decodeFrames(r){
+  const W=r.width,H=r.height,F=r.frame_count||1,bin=atob(r.data),fsize=W*H*3,offs=[];
+  for(let f=0;f<F;f++){
+    const off=document.createElement("canvas");off.width=W;off.height=H;
+    const ctx=off.getContext("2d"),img=ctx.createImageData(W,H),base=f*fsize;
+    for(let i=0;i<W*H;i++){const b=base+i*3,o=i*4;
+      img.data[o]=bin.charCodeAt(b);img.data[o+1]=bin.charCodeAt(b+1);img.data[o+2]=bin.charCodeAt(b+2);img.data[o+3]=255;}
+    ctx.putImageData(img,0,0);offs.push(off);
+  }
+  return {offs,W,H,F};
 }
 function fit(cv,cssH){
   const dpr=Math.min(2,window.devicePixelRatio||1);
@@ -558,10 +589,18 @@ function buildViz(d,big,q){
     q.push(()=>drawAudio(cv,d));return wrap;
   }
   if(t==="media.video"){
-    const md=(d.mqtt.measurements[0].media)||{};
-    const wrap=el("div","viz"),box=el("div","vidbox");box.append(el("div","play"));
-    box.append(Object.assign(el("div","ov"),{textContent:(md.width||"")+"×"+(md.height||"")+" · "+(md.duration_sec||"?")+"s"}));
-    wrap.append(box);wrap.append(Object.assign(el("div","caption"),{textContent:"Video telemedicine (tham chiếu URL — không đẩy pixel thô)"}));
+    const r=rasterOf(d),wrap=el("div","viz us");
+    if(r){
+      const cv=document.createElement("canvas");wrap.append(cv);
+      wrap.append(Object.assign(el("div","caption"),{textContent:"Video telemedicine · ghép "+(r.frame_count||1)+" khung RGB thô "+r.width+"×"+r.height+" (clip đầy đủ theo URL)"}));
+      const dec=decodeFrames(r);
+      videos.push({cv,off:dec.offs,frames:dec.F,W:dec.W,H:dec.H,fps:6,ctx:null});
+    }else{
+      const md=(d.mqtt.measurements[0].media)||{};
+      const box=el("div","vidbox");box.append(el("div","play"));
+      box.append(Object.assign(el("div","ov"),{textContent:(md.width||"")+"×"+(md.height||"")+" · "+(md.duration_sec||"?")+"s"}));
+      wrap.append(box);wrap.append(Object.assign(el("div","caption"),{textContent:"Video telemedicine (tham chiếu URL)"}));
+    }
     return wrap;
   }
   return el("div");
@@ -571,13 +610,13 @@ function vizMeta(d){
   if(t==="observation.waveform"){const hr=d.summary.find(r=>/rate|mạch|nhịp/i.test(r.label));return hr?metaRows([[hr.label,fmtVal(hr.value)+" "+hr.unit]]):null;}
   if(t==="imaging.study")return metaRows([["Modality",md.modality||"US"],["Số ảnh",String(md.number_of_instances||1)],["Vị trí",md.body_site||"—"]]);
   if(t==="media.audio")return metaRows([["Thời lượng",(md.duration_sec||"?")+" s"],["Vị trí",md.body_site||"—"]]);
-  if(t==="media.video")return metaRows([["Độ phân giải",(md.width||"?")+"×"+(md.height||"?")],["Thời lượng",(md.duration_sec||"?")+" s"],["Dung lượng",md.size_bytes?Math.round(md.size_bytes/1024)+" KB":"—"]]);
+  if(t==="media.video"){const r=rasterOf(d);return metaRows([["Độ phân giải clip",(md.width||"?")+"×"+(md.height||"?")],["Khung thô đẩy lên",r?(r.frame_count+" khung "+r.width+"×"+r.height+" RGB"):"—"],["Thời lượng",(md.duration_sec||"?")+" s"]]);}
   return null;
 }
 
 // --- The thiet bi ---
 function render(){
-  const g=$("#grid");g.innerHTML="";DRAW=[];
+  const g=$("#grid");g.innerHTML="";DRAW=[];videos=[];
   DATA.devices.filter(d=>active==="all"||d.message_type===active).forEach(d=>{
     const c=el("div","card");
     const h=el("div","card-h");

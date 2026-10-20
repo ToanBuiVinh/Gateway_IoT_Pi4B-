@@ -77,17 +77,19 @@ def validate_ranges(payload: Dict[str, Any]) -> List[str]:
         for comp in (meas.get("components") or []):
             cc = comp.get("code", {})
             check_value(cc.get("system"), cc.get("code"), comp.get("value"), comp.get("unit"))
-        # Toan ven du lieu diem anh tho: so byte giai ma phai = width*height (gray8)
+        # Toan ven du lieu diem anh tho: so byte giai ma = width*height*channels*frames
         r = meas.get("raster")
-        if r and r.get("encoding") == "base64" and r.get("pixel_format") == "gray8":
+        if r and r.get("encoding") == "base64":
+            channels = 3 if r.get("pixel_format") == "rgb888" else 1
             try:
                 nbytes = len(base64.b64decode(r["data"], validate=True))
             except (binascii.Error, ValueError):
                 errs.append("[raster] data khong phai base64 hop le")
                 continue
-            expect = int(r["width"]) * int(r["height"])
+            frames = int(r.get("frame_count", 1))
+            expect = int(r["width"]) * int(r["height"]) * channels * frames
             if nbytes != expect:
-                errs.append(f"[raster] so byte {nbytes} != width*height {expect}")
+                errs.append(f"[raster] so byte {nbytes} != w*h*ch*frames {expect}")
     return errs
 
 

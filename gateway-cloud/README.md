@@ -66,6 +66,7 @@ double-click, không cần server. **Phần hiển thị tự xử lý dữ li�
 - Số liệu (BP/SpO2/nhiệt độ/cân/LAB/glucose) → **biểu đồ thanh** theo khoảng hợp lệ.
 - **ECG** → **đồ thị sóng** PQRST vẽ từ mẫu tín hiệu thô (SampledData) trên lưới giấy đỏ.
 - **Siêu âm** → **ảnh tái tạo** trên canvas từ ma trận điểm ảnh thô (gray8 base64, sector B-mode).
+- **Camera** → **video phát được** ghép từ nhiều khung điểm ảnh thô (rgb888, từng khung).
 - **Ống nghe** → **đồ thị sóng âm** từ đường bao S1/S2.
 Bấm vào thẻ để xem lớn (tab Trực quan) + raw JSON (MQTT + FHIR).
 
