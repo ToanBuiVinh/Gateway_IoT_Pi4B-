@@ -1,0 +1,53 @@
+{
+  "schema_version": "2.1",
+  "message_id": "e5f60718-6093-4bc1-a273-60718293a415",
+  "message_type": "media.video",
+  "clinic_id": "CLINIC001",
+  "gateway_id": "GW-PI5-001",
+  "sequence_no": 10240,
+  "timestamps": {
+    "measured_at": "2026-10-20T08:58:00.000+07:00",
+    "received_at": "2026-10-20T08:58:02.000+07:00",
+    "sent_at": "2026-10-20T08:58:03.000+07:00",
+    "clock_source": "ntp"
+  },
+  "device": {
+    "device_id": "CAM-04",
+    "device_type": "telemedicine_camera",
+    "serial_number": "SN-CAM04-0001",
+    "firmware_version": "1.0.0",
+    "connection": "wifi",
+    "mac_address": "A4:C1:38:00:00:04",
+    "device_class": "commercial"
+  },
+  "patient": {
+    "patient_id": "BN-2026-000123",
+    "encounter_id": "ENC-2026-0456"
+  },
+  "patient_binding": {
+    "method": "qr_scan",
+    "operator_id": "NV-014",
+    "bound_at": "2026-10-20T08:46:00+07:00"
+  },
+  "measurements": [
+    {
+      "code": {
+        "system": "LOCAL",
+        "code": "telemedicine-video",
+        "display": "Telemedicine video clip [CAN XAC MINH]"
+      },
+      "status": "final",
+      "media": {
+        "content_type": "video/mp4",
+        "url": "s3://clinic001-media/CLINIC001/BN-2026-000123/CAM-04/clip-10240.mp4",
+        "size_bytes": 10485760,
+        "duration_sec": 12.0,
+        "width": 1280,
+        "height": 720,
+        "frames": 360,
+        "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+      },
+      "device_flags": {}
+    }
+  ]
+}

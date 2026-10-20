@@ -1,0 +1,81 @@
+{
+  "schema_version": "2.1",
+  "message_id": "9c4d1e22-1b5f-4a7c-9d2e-1b2c3d4e5f60",
+  "message_type": "observation.vitals",
+  "clinic_id": "CLINIC001",
+  "gateway_id": "GW-PI5-001",
+  "sequence_no": 10235,
+  "timestamps": {
+    "measured_at": "2026-10-20T08:54:00.000+07:00",
+    "received_at": "2026-10-20T08:54:00.300+07:00",
+    "sent_at": "2026-10-20T08:54:00.900+07:00",
+    "clock_source": "ntp"
+  },
+  "device": {
+    "device_id": "SPO-02",
+    "device_type": "pulse_oximeter",
+    "serial_number": "SN-SPO02-0001",
+    "firmware_version": "1.0.0",
+    "connection": "ble",
+    "mac_address": "A4:C1:38:00:00:02",
+    "device_class": "commercial"
+  },
+  "patient": {
+    "patient_id": "BN-2026-000123",
+    "encounter_id": "ENC-2026-0456"
+  },
+  "patient_binding": {
+    "method": "qr_scan",
+    "operator_id": "NV-014",
+    "bound_at": "2026-10-20T08:46:00+07:00"
+  },
+  "measurements": [
+    {
+      "code": {
+        "system": "LOINC",
+        "code": "59408-5",
+        "display": "Oxygen saturation by Pulse oximetry"
+      },
+      "value": 96,
+      "unit": "%",
+      "status": "final",
+      "quality": {
+        "signal_quality": "good",
+        "confidence": null
+      },
+      "device_flags": {
+        "motion_detected": false
+      }
+    },
+    {
+      "code": {
+        "system": "LOINC",
+        "code": "8867-4",
+        "display": "Heart rate"
+      },
+      "value": 74,
+      "unit": "/min",
+      "status": "final",
+      "quality": {
+        "signal_quality": "good",
+        "confidence": null
+      },
+      "device_flags": {}
+    },
+    {
+      "code": {
+        "system": "LOCAL",
+        "code": "perfusion-index",
+        "display": "Perfusion index [CAN XAC MINH]"
+      },
+      "value": 2.4,
+      "unit": "%",
+      "status": "final",
+      "quality": {
+        "signal_quality": "good",
+        "confidence": null
+      },
+      "device_flags": {}
+    }
+  ]
+}

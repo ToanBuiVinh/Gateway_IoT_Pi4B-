@@ -1,0 +1,50 @@
+{
+  "schema_version": "2.1",
+  "message_id": "18293041-93c6-4ef4-95a6-93a4b5c6d748",
+  "message_type": "observation.lab",
+  "clinic_id": "CLINIC001",
+  "gateway_id": "GW-PI5-001",
+  "sequence_no": 10243,
+  "timestamps": {
+    "measured_at": "2026-10-20T08:47:00.000+07:00",
+    "received_at": "2026-10-20T08:47:00.500+07:00",
+    "sent_at": "2026-10-20T08:47:01.000+07:00",
+    "clock_source": "ntp"
+  },
+  "device": {
+    "device_id": "GLU-10",
+    "device_type": "glucometer",
+    "serial_number": "SN-GLU10-0001",
+    "firmware_version": "1.0.0",
+    "connection": "ble",
+    "mac_address": "A4:C1:38:00:00:10",
+    "device_class": "commercial"
+  },
+  "patient": {
+    "patient_id": "BN-2026-000123",
+    "encounter_id": "ENC-2026-0456"
+  },
+  "patient_binding": {
+    "method": "qr_scan",
+    "operator_id": "NV-014",
+    "bound_at": "2026-10-20T08:46:00+07:00"
+  },
+  "measurements": [
+    {
+      "code": {
+        "system": "LOINC",
+        "code": "41653-7",
+        "display": "Glucose [Mass/volume] in Capillary blood by Glucometer"
+      },
+      "value": 98,
+      "unit": "mg/dL",
+      "status": "final",
+      "quality": {
+        "signal_quality": "good",
+        "confidence": null
+      },
+      "device_flags": {},
+      "method": "fingerstick [CAN XAC MINH]"
+    }
+  ]
+}

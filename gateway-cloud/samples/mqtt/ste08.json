@@ -1,0 +1,51 @@
+{
+  "schema_version": "2.1",
+  "message_id": "07182930-82b5-4de3-8495-8293a4b5c637",
+  "message_type": "media.audio",
+  "clinic_id": "CLINIC001",
+  "gateway_id": "GW-PI5-001",
+  "sequence_no": 10242,
+  "timestamps": {
+    "measured_at": "2026-10-20T08:57:00.000+07:00",
+    "received_at": "2026-10-20T08:57:01.000+07:00",
+    "sent_at": "2026-10-20T08:57:02.000+07:00",
+    "clock_source": "ntp"
+  },
+  "device": {
+    "device_id": "STE-08",
+    "device_type": "stethoscope",
+    "serial_number": "SN-STE08-0001",
+    "firmware_version": "1.0.0",
+    "connection": "ble",
+    "mac_address": "A4:C1:38:00:00:08",
+    "device_class": "commercial"
+  },
+  "patient": {
+    "patient_id": "BN-2026-000123",
+    "encounter_id": "ENC-2026-0456"
+  },
+  "patient_binding": {
+    "method": "qr_scan",
+    "operator_id": "NV-014",
+    "bound_at": "2026-10-20T08:46:00+07:00"
+  },
+  "measurements": [
+    {
+      "code": {
+        "system": "LOCAL",
+        "code": "auscultation-audio",
+        "display": "Cardiac auscultation audio [CAN XAC MINH]"
+      },
+      "status": "final",
+      "media": {
+        "content_type": "audio/wav",
+        "url": "s3://clinic001-media/CLINIC001/BN-2026-000123/STE-08/auscultation-10242.wav",
+        "size_bytes": 1323000,
+        "duration_sec": 15.0,
+        "body_site": "Precordium",
+        "sha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d"
+      },
+      "device_flags": {}
+    }
+  ]
+}

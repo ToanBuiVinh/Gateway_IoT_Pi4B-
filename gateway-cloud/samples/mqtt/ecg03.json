@@ -1,0 +1,76 @@
+{
+  "schema_version": "2.1",
+  "message_id": "d4e5f607-5f92-4ab0-9162-5f6071829304",
+  "message_type": "observation.waveform",
+  "clinic_id": "CLINIC001",
+  "gateway_id": "GW-PI5-001",
+  "sequence_no": 10239,
+  "timestamps": {
+    "measured_at": "2026-10-20T08:56:00.000+07:00",
+    "received_at": "2026-10-20T08:56:00.600+07:00",
+    "sent_at": "2026-10-20T08:56:01.200+07:00",
+    "clock_source": "ntp"
+  },
+  "device": {
+    "device_id": "ECG-03",
+    "device_type": "ecg",
+    "serial_number": "SN-ECG03-0001",
+    "firmware_version": "1.0.0",
+    "connection": "ble",
+    "mac_address": "A4:C1:38:00:00:03",
+    "device_class": "commercial"
+  },
+  "patient": {
+    "patient_id": "BN-2026-000123",
+    "encounter_id": "ENC-2026-0456"
+  },
+  "patient_binding": {
+    "method": "qr_scan",
+    "operator_id": "NV-014",
+    "bound_at": "2026-10-20T08:46:00+07:00"
+  },
+  "measurements": [
+    {
+      "code": {
+        "system": "LOCAL",
+        "code": "ecg-rhythm-lead-II",
+        "display": "ECG rhythm strip (lead II) [CAN XAC MINH]"
+      },
+      "value": null,
+      "unit": "mV",
+      "status": "final",
+      "sampled_data": {
+        "lead": "II",
+        "origin_value": 0,
+        "unit": "mV",
+        "period_ms": 2,
+        "frequency_hz": 500,
+        "factor": 0.001,
+        "dimensions": 1,
+        "sample_count": 2500,
+        "truncated": true,
+        "data": "0 2 5 7 10 262 -70 -68 18 20 21 22 23 24 24 25 24 24 23 22 21 20 18 16 14 262 -74 -77 5 2 0 -2 -5 -7 -10 -12 -14 -16 -18 -20 -21 -22 -23 -24 -24 225 -108 -108 -23 -22 -21 -20 -18 -16 -14 -12 -10 -7 -5 -2"
+      },
+      "quality": {
+        "signal_quality": "good",
+        "confidence": null
+      },
+      "device_flags": {}
+    },
+    {
+      "code": {
+        "system": "LOINC",
+        "code": "8867-4",
+        "display": "Heart rate"
+      },
+      "value": 72,
+      "unit": "/min",
+      "status": "final",
+      "quality": {
+        "signal_quality": "good",
+        "confidence": null
+      },
+      "device_flags": {}
+    }
+  ]
+}

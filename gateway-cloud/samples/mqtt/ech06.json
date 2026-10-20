@@ -1,0 +1,52 @@
+{
+  "schema_version": "2.1",
+  "message_id": "f6071829-71a4-4cd2-b384-718293a4b526",
+  "message_type": "imaging.study",
+  "clinic_id": "CLINIC001",
+  "gateway_id": "GW-PI5-001",
+  "sequence_no": 10241,
+  "timestamps": {
+    "measured_at": "2026-10-20T09:10:00.000+07:00",
+    "received_at": "2026-10-20T09:10:03.000+07:00",
+    "sent_at": "2026-10-20T09:10:04.000+07:00",
+    "clock_source": "ntp"
+  },
+  "device": {
+    "device_id": "ECH-06",
+    "device_type": "ultrasound",
+    "serial_number": "SN-ECH06-0001",
+    "firmware_version": "1.0.0",
+    "connection": "lan",
+    "mac_address": "A4:C1:38:00:00:06",
+    "device_class": "commercial"
+  },
+  "patient": {
+    "patient_id": "BN-2026-000123",
+    "encounter_id": "ENC-2026-0456"
+  },
+  "patient_binding": {
+    "method": "qr_scan",
+    "operator_id": "NV-014",
+    "bound_at": "2026-10-20T08:46:00+07:00"
+  },
+  "measurements": [
+    {
+      "code": {
+        "system": "LOCAL",
+        "code": "us-image-set",
+        "display": "Ultrasound image set [CAN XAC MINH]"
+      },
+      "status": "final",
+      "media": {
+        "content_type": "application/dicom",
+        "modality": "US",
+        "url": "dicomweb:https://clinic001.example.vn/dicomweb/studies/1.2.826.0.1.3680043.8.498.100",
+        "number_of_series": 1,
+        "number_of_instances": 24,
+        "body_site": "Abdomen",
+        "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      },
+      "device_flags": {}
+    }
+  ]
+}
