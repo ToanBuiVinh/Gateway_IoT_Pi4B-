@@ -11,7 +11,7 @@
     "message_id": { "type": "string", "format": "uuid" },
     "message_type": {
       "enum": ["observation.vitals", "observation.lab", "observation.waveform",
-               "event.alarm", "device.status"]
+               "imaging.study", "event.alarm", "device.status"]
     },
     "event_time": { "type": "string", "format": "date-time" },
     "sequence_no": { "type": "integer", "minimum": 0 },
@@ -28,6 +28,8 @@
       "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/vitalsPayload" } } } },
     { "if": { "properties": { "message_type": { "const": "observation.lab" } }, "required": ["message_type"] },
       "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/labPayload" } } } },
+    { "if": { "properties": { "message_type": { "const": "imaging.study" } }, "required": ["message_type"] },
+      "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/imagingPayload" } } } },
     { "if": { "properties": { "message_type": { "const": "device.status" } }, "required": ["message_type"] },
       "then": { "properties": { "payload": { "$ref": "#/$defs/statusPayload" } } } }
   ],
@@ -58,7 +60,7 @@
       "required": ["source_id", "source_type"],
       "properties": {
         "source_id": { "type": "string" },
-        "source_type": { "enum": ["robot_doctor", "lab_analyzer", "lis", "patient_monitor", "other"] },
+        "source_type": { "enum": ["robot_doctor", "lab_analyzer", "lis", "patient_monitor", "imaging_device", "other"] },
         "connection": { "enum": ["ble", "ethernet", "wifi", "serial", "https", "vendor_api", "other"] }
       }
     },
@@ -179,6 +181,53 @@
           }
         },
         "measurements": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/measurement" } }
+      }
+    },
+    "imagingPayload": {
+      "type": "object", "additionalProperties": false,
+      "description": "Thong bao anh (control plane). KHONG chua pixel; pixel tai qua DICOMweb/URL (data plane).",
+      "required": ["study", "storage"],
+      "properties": {
+        "study": {
+          "type": "object", "additionalProperties": false,
+          "required": ["study_instance_uid", "modality", "started_at"],
+          "properties": {
+            "study_instance_uid": { "type": "string" },
+            "accession_number": { "type": "string" },
+            "modality": { "type": "string" },
+            "started_at": { "type": "string", "format": "date-time" },
+            "number_of_series": { "type": "integer", "minimum": 0 },
+            "number_of_instances": { "type": "integer", "minimum": 0 },
+            "description": { "type": "string" },
+            "body_site": { "type": "string" }
+          }
+        },
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["series_instance_uid", "modality"],
+            "properties": {
+              "series_instance_uid": { "type": "string" },
+              "modality": { "type": "string" },
+              "number_of_instances": { "type": "integer", "minimum": 0 },
+              "body_site": { "type": "string" }
+            }
+          }
+        },
+        "storage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "enum": ["dicomweb", "dimse", "s3", "pacs", "other"] },
+            "stored_at": { "type": "string", "format": "date-time" },
+            "wado_rs_study": { "type": "string" },
+            "stow_rs": { "type": "string" },
+            "thumbnail_url": { "type": "string" },
+            "size_bytes": { "type": "integer", "minimum": 0 },
+            "transfer_syntax": { "type": "string" }
+          }
+        }
       }
     },
     "statusPayload": {

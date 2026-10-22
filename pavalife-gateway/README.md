@@ -17,8 +17,13 @@ tin mẫu, validate, và một dashboard xem trực quan.
 | 4 | Cân | SCALE-001 | observation.vitals | robot_doctor | body_weight **29463-7** (kg) |
 | 5 | Xét nghiệm (axit uric) | LAB-001 | observation.lab | lab_analyzer | uric_acid **14933-6** (umol/L) + specimen + report |
 | 6 | Đường huyết | GLU-001 | observation.lab | lab_analyzer | blood_glucose **14743-9** (mmol/L) + specimen + report |
+| 7 | Siêu âm *(mở rộng)* | US-001 | imaging.study | imaging_device | DICOM (US) — chỉ tham chiếu, pixel qua DICOMweb |
 
 Thêm **device.status** (Phụ lục A): connectivity / battery / sensor_health.
+
+> **Ảnh siêu âm (imaging.study):** thiết kế gửi ảnh không nhồi pixel vào MQTT — tách
+> control plane (MQTT metadata) và data plane (DICOM qua DICOMweb/WADO-RS). Chi tiết
+> kiến trúc + lập trình tầng dưới (thiết bị) và tầng Application: [`docs/IMAGING_DESIGN.md`](docs/IMAGING_DESIGN.md).
 
 ## Cấu trúc bản tin (v2.1)
 

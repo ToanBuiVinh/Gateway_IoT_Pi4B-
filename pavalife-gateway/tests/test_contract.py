@@ -49,9 +49,14 @@ def main() -> int:
         assert "patient" not in topic.lower() and "BN-" not in topic
         # Rule #7: khong value:null
         assert _no_null_value(msg), f"{name}: co value:null"
-        # observation.* phai co patient_context
-        if mtype.startswith("observation"):
+        # observation.* / imaging.study phai co patient_context
+        if mtype.startswith("observation") or mtype == "imaging.study":
             assert "patient_context" in msg, f"{name}: thieu patient_context"
+        # imaging.study: KHONG chua pixel trong ban tin; phai co tham chieu storage
+        if mtype == "imaging.study":
+            st = msg["payload"]["storage"]
+            assert "wado_rs_study" in st or "stow_rs" in st, f"{name}: thieu tham chieu DICOMweb"
+            assert "data" not in json.dumps(msg), f"{name}: khong duoc nhung pixel (data) trong MQTT"
         # Rule #8: observation.lab phai co specimen + report + source_type lab_analyzer/lis
         if mtype == "observation.lab":
             p = msg["payload"]

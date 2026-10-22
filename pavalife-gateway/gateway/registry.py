@@ -74,12 +74,21 @@ DEVICES = {
         "specimen_type": "capillary_blood",
         "measurements": [{"local_code": "blood_glucose", "suffix": "GLU", "status": "preliminary"}],
     },
+    # Sieu am: imaging.study (control plane) — pixel tai qua DICOMweb (data plane)
+    "ultrasound": {
+        "device_id": "US-001", "message_type": "imaging.study", "source_type": "imaging_device",
+        "modality": "US",
+    },
 }
+
+# DICOMweb cua PACS (noi luu & lay anh). [CAN PAVALIFE XAC NHAN]
+DICOMWEB_BASE = "https://pacs.pavalife.com/dicom-web"
+UID_ROOT = "1.2.826.0.1.3680043.8.498"   # OID goc (vi du) — PavaLife cap OID that
 
 # Thu tu + sequence_no demo (device.status=100, roi 101..106)
 ORDER = ["blood_pressure", "spo2", "thermometer", "scale", "lab_analyzer", "glucose"]
 SEQ = {"blood_pressure": 101, "spo2": 102, "thermometer": 103, "scale": 104,
-       "lab_analyzer": 105, "glucose": 106, "device.status": 100}
+       "lab_analyzer": 105, "glucose": 106, "ultrasound": 107, "device.status": 100}
 
 
 def topic_for(message_type: str) -> str:

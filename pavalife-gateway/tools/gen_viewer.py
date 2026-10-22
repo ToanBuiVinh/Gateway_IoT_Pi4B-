@@ -62,6 +62,26 @@ def build_data():
             entry["report"] = msg["payload"]["report"]
         devices.append(entry)
 
+    # Sieu am (imaging.study) — chi tham chieu DICOM, khong pixel
+    with open(os.path.join(SAMPLES, "ultrasound.json"), encoding="utf-8") as f:
+        um = json.load(f)
+    study = um["payload"]["study"]
+    storage = um["payload"]["storage"]
+    devices.append({
+        "device_key": "ultrasound", "device_id": "US-001", "message_type": "imaging.study",
+        "source_type": um["source"]["source_type"], "topic": reg.topic_for("imaging.study"),
+        "sequence_no": um["sequence_no"], "event_time": um["event_time"],
+        "kind": "imaging", "valid": not validator.validate(um),
+        "summary": [
+            {"label": "Modality", "value": study["modality"]},
+            {"label": "Số ảnh (instances)", "value": study["number_of_instances"]},
+            {"label": "Vị trí", "value": study.get("body_site", "—")},
+            {"label": "StudyInstanceUID", "value": "…" + study["study_instance_uid"][-16:]},
+            {"label": "Lưu trữ", "value": storage["type"]},
+        ],
+        "wado": storage.get("wado_rs_study"), "msg": um,
+    })
+
     with open(os.path.join(SAMPLES, "device_status.json"), encoding="utf-8") as f:
         ds = json.load(f)
     status = {"device_id": reg.SOURCE_ID, "message_type": "device.status",
@@ -153,6 +173,10 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:15;background:va
 .q-good{background:var(--good-weak);color:var(--good)}.q-unavailable,.q-suspect{background:var(--warn-weak);color:var(--warn)}
 .topic{margin:8px 16px 0;font-family:var(--mono);font-size:.66rem;color:var(--muted);background:var(--surface-2);border-radius:7px;padding:7px 9px;overflow-x:auto;white-space:nowrap}
 .labmeta{margin:6px 16px 0;font-size:.7rem;color:var(--muted)}
+.dicombox{aspect-ratio:16/10;background:linear-gradient(135deg,#0b1a22,#05272e);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#bfe}
+.dicombox .dic-ico{font-family:var(--mono);font-weight:700;font-size:1.3rem;border:2px solid rgba(190,238,255,.5);border-radius:10px;padding:8px 14px}
+.dicombox .dic-t{font-size:.66rem;opacity:.8;padding:0 14px;text-align:center}
+.wado{margin:6px 16px 0;font-family:var(--mono);font-size:.64rem;color:var(--accent);background:var(--accent-weak);border-radius:7px;padding:6px 9px;overflow-x:auto;white-space:nowrap}
 .card-f{display:flex;gap:8px;padding:12px 16px 14px;margin-top:auto}
 .btn{flex:1;border:1px solid var(--border);background:var(--surface-2);color:var(--fg);border-radius:8px;padding:8px;font:inherit;font-size:.78rem;font-weight:500;cursor:pointer}
 .btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -179,7 +203,7 @@ footer{color:var(--muted);font-size:.74rem;padding:22px 0 40px;border-top:1px so
 
 <header><div class="wrap head-in">
   <div class="brand"><h1>PavaLife — Device Data Contract</h1>
-    <span class="sub">6 thiết bị · v<span id="sv"></span> · MQTT 5.0 over WSS · JSON Schema 2020-12</span></div>
+    <span class="sub">Thiết bị y tế · v<span id="sv"></span> · MQTT 5.0 over WSS · JSON Schema 2020-12</span></div>
   <div class="head-meta">
     <div class="kv">Facility<b class="mono" id="fac"></b></div>
     <div class="kv">Gateway<b class="mono" id="gw"></b></div>
@@ -224,7 +248,7 @@ $("#sv").textContent=DATA.schema_version;$("#fac").textContent=DATA.facility;$("
 
 // Tiles
 const nAll=DATA.devices.length, nOK=DATA.devices.filter(d=>d.valid).length+ (DATA.status.valid?1:0);
-[["6","thiết bị đo"],["observation.vitals · lab","message_type"],[(nOK)+"/"+(nAll+1),"bản tin hợp lệ (schema)"],[DATA.absent.length,"ví dụ thiếu dữ liệu"]]
+[[String(nAll),"thiết bị"],["vitals · lab · imaging","message_type"],[(nOK)+"/"+(nAll+1),"bản tin hợp lệ (schema)"],[DATA.absent.length,"ví dụ thiếu dữ liệu"]]
 .forEach((t,i)=>{const d=el("div","tile"+(i===2?" ok":""));d.append(el("div","n",String(t[0])),el("div","l",t[1]));$("#tiles").append(d);});
 
 // ==== ĐẨY DỮ LIỆU LÊN (PUSH) — mỗi 500ms một dữ liệu ====
@@ -259,7 +283,13 @@ function buildMonitor(summary,big){const rows=summary.filter(r=>typeof r.value==
  const wrap=el("div","viz"),cv=document.createElement("canvas");wrap.append(cv);
  wrap.append(Object.assign(el("div","caption"),{textContent:"Monitor · đẩy 1 điểm / "+PUSH_MS+"ms · cửa sổ "+N_POINTS+" điểm (mô phỏng)"}));
  liveCharts.push({cv,fn:()=>drawMonitor(cv,streams,cssH)});return wrap;}
-function buildViz(d,big){if(d.kind==="vitals")return buildMonitor(d.summary,big);return buildBars(d.summary);}
+function buildViz(d,big){
+ if(d.kind==="vitals")return buildMonitor(d.summary,big);
+ if(d.kind==="imaging"){const wrap=el("div","viz"),box=el("div","dicombox");
+  box.append(Object.assign(el("div","dic-ico"),{textContent:"US"}));
+  box.append(Object.assign(el("div","dic-t"),{textContent:"Ảnh DICOM · tải qua WADO-RS (pixel KHÔNG nhúng trong MQTT)"}));
+  wrap.append(box,Object.assign(el("div","caption"),{textContent:"imaging.study · chỉ tham chiếu study + storage"}));return wrap;}
+ return buildBars(d.summary);}
 
 function render(){const g=$("#grid");g.innerHTML="";pushStreams=[];liveCharts=[];
  DATA.devices.forEach(d=>{const c=el("div","card");
@@ -267,6 +297,7 @@ function render(){const g=$("#grid");g.innerHTML="";pushStreams=[];liveCharts=[]
   const pill=el("span","pill "+(d.valid?"ok":"warn"));pill.append(el("span","dot"),document.createTextNode(d.valid?"hợp lệ":"lỗi"));h.append(ib,pill);
   c.append(h,el("span","mtype",d.message_type),buildViz(d,false));
   if(d.kind==="lab")c.append(Object.assign(el("div","labmeta"),{textContent:"Bệnh phẩm "+d.specimen.specimen_type+" · report "+d.report.status}));
+  if(d.kind==="imaging"){c.append(buildBars(d.summary));if(d.wado)c.append(Object.assign(el("div","wado"),{textContent:"WADO-RS  "+d.wado}));}
   c.append(Object.assign(el("div","topic"),{textContent:d.topic}));
   const f=el("div","card-f");const b1=el("button","btn","Chỉ số");b1.onclick=e=>{e.stopPropagation();openModal(d,"detail");};
   const b2=el("button","btn","Bản tin JSON");b2.onclick=e=>{e.stopPropagation();openModal(d,"msg");};f.append(b1,b2);c.append(f);

@@ -163,6 +163,48 @@ def build_lab(device_key: str, values: Dict[str, Any], event_time: str,
     return msg
 
 
+def build_imaging_study(device_key: str, event_time: str, sequence_no: Optional[int] = None,
+                        instances: int = 24, body_site: str = "Abdomen") -> Dict[str, Any]:
+    """Thong bao anh (imaging.study) — CHI tham chieu DICOM, KHONG chua pixel.
+
+    Pixel duoc upload truoc qua DICOMweb STOW-RS / object storage (data plane);
+    ban tin nay chi bao cloud co study moi & cach lay (wado_rs). Giu MQTT nhe.
+    """
+    dev = reg.DEVICES[device_key]
+    seq = sequence_no if sequence_no is not None else reg.SEQ[device_key]
+    did = dev["device_id"]
+    study_uid = f"{reg.UID_ROOT}.100.{seq}"
+    series_uid = f"{reg.UID_ROOT}.200.{seq}"
+    wado = f"{reg.DICOMWEB_BASE}/studies/{study_uid}"
+    msg = _base("imaging.study", event_time, seq, dev["source_type"], with_patient=True)
+    msg["payload"] = {
+        "study": {
+            "study_instance_uid": study_uid,
+            "accession_number": f"{did}-ACC-{seq:06d}",
+            "modality": dev["modality"],
+            "started_at": event_time,
+            "number_of_series": 1,
+            "number_of_instances": instances,
+            "description": "Ultrasound abdomen",
+            "body_site": body_site,
+        },
+        "series": [{
+            "series_instance_uid": series_uid, "modality": dev["modality"],
+            "number_of_instances": instances, "body_site": body_site,
+        }],
+        "storage": {
+            "type": "dicomweb",
+            "stored_at": event_time,
+            "wado_rs_study": wado,                               # lay anh: WADO-RS
+            "stow_rs": f"{reg.DICOMWEB_BASE}/studies",           # noi da luu: STOW-RS
+            "thumbnail_url": f"{wado}/thumbnail",
+            "size_bytes": 10485760,
+            "transfer_syntax": "1.2.840.10008.1.2.4.50",         # JPEG Baseline
+        },
+    }
+    return msg
+
+
 def build_device_status(event_time: str, battery_percent: int = 85,
                         sequence_no: Optional[int] = None) -> Dict[str, Any]:
     seq = sequence_no if sequence_no is not None else reg.SEQ["device.status"]
