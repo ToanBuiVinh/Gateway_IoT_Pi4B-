@@ -1,43 +1,63 @@
-"""Publisher MQTT 5.0 over WSS (WebSocket Secure) theo contract Bang 0.
+"""Publisher PavaLife — ho tro nhieu loai broker (de test cuc bo).
+
+broker_url chap nhan:
+  mqtt://localhost:1883     (TCP thuong - test cuc bo)
+  mqtts://host:8883         (TCP + TLS)
+  ws://localhost:9001/mqtt  (WebSocket)
+  wss://host:443/mqtt       (WebSocket + TLS - production PavaLife)
 
 Topic: pvl/v2/gw/{gateway_id}/up/{message_type}  (rule #10: KHONG co patient_id).
-Import paho tre -> chi can khi publish that.
 """
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 from urllib.parse import urlparse
 
 from . import registry as reg
 
 log = logging.getLogger("pvl.mqtt")
 
+_DEFAULT_PORT = {"wss": 443, "ws": 9001, "mqtts": 8883, "mqtt": 1883, "tcp": 1883}
+
+
+def _parse(url: str) -> Tuple[str, int, str, bool, bool]:
+    if "://" not in url:
+        url = "mqtt://" + url
+    u = urlparse(url)
+    scheme = u.scheme or "mqtt"
+    ws = scheme in ("ws", "wss")
+    tls = scheme in ("wss", "mqtts")
+    port = u.port or _DEFAULT_PORT.get(scheme, 1883)
+    return (u.hostname or "localhost"), port, (u.path or "/mqtt"), ws, tls
+
 
 class PavaLifePublisher:
     def __init__(self, broker_url: str = reg.BROKER_URL, *, username: str = "",
-                 password: str = "", client_id: str = None) -> None:
+                 password: str = "", client_id: str = None,
+                 ca_cert: str = None, insecure: bool = False) -> None:
         import paho.mqtt.client as mqtt
 
-        u = urlparse(broker_url)   # wss://host:443/mqtt
-        self._host = u.hostname
-        self._port = u.port or (443 if u.scheme == "wss" else 8083)
-        self._path = u.path or "/mqtt"
-        self._tls = (u.scheme == "wss")
-
+        self._host, self._port, self._path, self._ws, self._tls = _parse(broker_url)
+        transport = "websockets" if self._ws else "tcp"
         self._client = mqtt.Client(
             client_id=client_id or f"{reg.GATEWAY_ID}-pub",
-            protocol=mqtt.MQTTv5, transport="websockets",
+            protocol=mqtt.MQTTv5, transport=transport,
         )
-        self._client.ws_set_options(path=self._path)
+        if self._ws:
+            self._client.ws_set_options(path=self._path)
         if self._tls:
-            self._client.tls_set()   # dung CA he thong; them ca_certs/cert neu mTLS
+            self._client.tls_set(ca_certs=ca_cert)
+            if insecure:
+                self._client.tls_insecure_set(True)
         if username:
             self._client.username_pw_set(username, password)
 
     def connect(self) -> None:
-        log.info("Ket noi broker wss://%s:%s%s (MQTT 5.0)", self._host, self._port, self._path)
+        log.info("Ket noi broker %s://%s:%s (MQTT 5.0, transport=%s)",
+                 "wss" if (self._ws and self._tls) else ("ws" if self._ws else ("mqtts" if self._tls else "mqtt")),
+                 self._host, self._port, "websockets" if self._ws else "tcp")
         self._client.connect(self._host, self._port, keepalive=30)
         self._client.loop_start()
 

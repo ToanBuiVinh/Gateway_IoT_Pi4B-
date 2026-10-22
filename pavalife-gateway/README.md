@@ -71,9 +71,29 @@ python tools/gen_viewer.py       # sinh dashboard viewer/index.html
 ```bash
 python pvl_send.py vitals --devices blood_pressure,spo2   # in JSON ra màn hình
 python pvl_send.py lab    --devices lab_analyzer,glucose
+python pvl_send.py imaging                                 # siêu âm (imaging.study)
 python pvl_send.py status
-# Gửi thật lên broker MQTT 5.0/WSS:
-python pvl_send.py vitals --devices spo2 --publish --username <u> --password <p>
+python pvl_send.py all                                     # tất cả bản tin
+```
+
+### 🧪 Test cục bộ — gửi lên broker của chính bạn
+Không cần broker PavaLife thật. Dựng Mosquitto local rồi gửi/nhận — xem
+[`local-test/README.md`](local-test/README.md):
+```bash
+# 1) broker cục bộ:  cd local-test && docker compose up -d   (hoặc chạy mosquitto)
+# 2) nghe:
+python tools/pvl_subscribe.py
+# 3) gửi (cửa sổ khác):
+python pvl_send.py all --local --publish        # -> mqtt://localhost:1883
+```
+
+### 🖼️ Đường DICOM thật (pydicom + Orthanc)
+Đóng gói ảnh siêu âm → DICOM → Orthanc (DICOMweb) → thông báo MQTT. Xem
+[`imaging/README.md`](imaging/README.md):
+```bash
+pip install -r imaging/requirements-imaging.txt
+cd imaging && docker compose up -d               # Orthanc (PACS + DICOMweb) :8042
+python imaging/wrap_and_publish.py --stow --publish --local
 ```
 
 ## Dashboard

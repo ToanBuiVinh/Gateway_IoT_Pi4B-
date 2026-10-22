@@ -1,0 +1,10 @@
+services:
+  orthanc:
+    image: orthancteam/orthanc:24.7.3
+    container_name: pvl-orthanc
+    ports:
+      - "8042:8042"      # REST API + DICOMweb (http://localhost:8042/dicom-web)
+      - "4242:4242"      # DICOM DIMSE (C-STORE)
+    volumes:
+      - ./orthanc.json:/etc/orthanc/orthanc.json:ro
+    restart: unless-stopped
