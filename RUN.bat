@@ -24,11 +24,11 @@ if %errorlevel%==0 (
   echo [Bo qua] Khong tim thay git - dung code hien co.
 )
 
-REM --- Chay pipeline trong gateway-cloud ---
-if not exist "gateway-cloud\run_all.bat" (
-  echo [LOI] Khong thay gateway-cloud\run_all.bat . Ban da pull dung repo chua?
+REM --- Chay pipeline PavaLife v2.1 (hop dong hien hanh) ---
+if not exist "pavalife-gateway\run_all.bat" (
+  echo [LOI] Khong thay pavalife-gateway\run_all.bat . Ban da pull dung repo chua?
   pause
   exit /b 1
 )
-cd gateway-cloud
+cd pavalife-gateway
 call run_all.bat

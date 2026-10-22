@@ -1,0 +1,78 @@
+{
+  "schema_version": "2.1",
+  "message_id": "29e79fe6-b7f0-46ab-b2d5-2492e599d86b",
+  "message_type": "observation.vitals",
+  "event_time": "2026-10-21T21:56:23.696+07:00",
+  "sequence_no": 102,
+  "facility": {
+    "facility_id": "PVL-ROBOT-DEV"
+  },
+  "gateway": {
+    "gateway_id": "GW-ROBOT-DEV-001",
+    "software_version": "0.2.0",
+    "received_at": "2026-10-21T21:56:23.696+07:00",
+    "published_at": "2026-10-21T21:56:23.696+07:00",
+    "clock_source": "ntp"
+  },
+  "source": {
+    "source_id": "ROBOT-DEV-001",
+    "source_type": "robot_doctor",
+    "connection": "wifi"
+  },
+  "patient_context": {
+    "patient_id": "BN-TEST-000001",
+    "patient_id_issuer": "PVL-ROBOT-DEV",
+    "encounter_id": "ENC-TEST-000001",
+    "encounter_id_issuer": "PVL-ROBOT-DEV",
+    "binding": {
+      "binding_id": "BIND-TEST-001",
+      "method": "manual",
+      "status": "pending_verification",
+      "bound_at": "2026-10-21T21:56:23.696+07:00"
+    }
+  },
+  "payload": {
+    "measurements": [
+      {
+        "observation_id": "SPO2-001-000102-SPO2",
+        "local_code": "spo2",
+        "code": {
+          "system": "http://loinc.org",
+          "code": "2708-6",
+          "display": "Oxygen saturation in arterial blood"
+        },
+        "measured_at": "2026-10-21T21:56:23.696+07:00",
+        "status": "final",
+        "value": 99,
+        "unit": {
+          "system": "http://unitsofmeasure.org",
+          "code": "%",
+          "display": "percent"
+        },
+        "quality": {
+          "status": "good"
+        }
+      },
+      {
+        "observation_id": "SPO2-001-000102-HR",
+        "local_code": "heart_rate",
+        "code": {
+          "system": "http://loinc.org",
+          "code": "8867-4",
+          "display": "Heart rate"
+        },
+        "measured_at": "2026-10-21T21:56:23.696+07:00",
+        "status": "final",
+        "value": 80,
+        "unit": {
+          "system": "http://unitsofmeasure.org",
+          "code": "/min",
+          "display": "beats/minute"
+        },
+        "quality": {
+          "status": "good"
+        }
+      }
+    ]
+  }
+}

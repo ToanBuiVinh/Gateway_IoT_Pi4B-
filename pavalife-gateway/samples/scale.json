@@ -1,0 +1,58 @@
+{
+  "schema_version": "2.1",
+  "message_id": "7a1c2d3e-0001-4a10-9b20-000000000104",
+  "message_type": "observation.vitals",
+  "event_time": "2026-10-21T21:56:23.698+07:00",
+  "sequence_no": 104,
+  "facility": {
+    "facility_id": "PVL-ROBOT-DEV"
+  },
+  "gateway": {
+    "gateway_id": "GW-ROBOT-DEV-001",
+    "software_version": "0.2.0",
+    "received_at": "2026-10-21T21:56:23.698+07:00",
+    "published_at": "2026-10-21T21:56:23.698+07:00",
+    "clock_source": "ntp"
+  },
+  "source": {
+    "source_id": "ROBOT-DEV-001",
+    "source_type": "robot_doctor",
+    "connection": "wifi"
+  },
+  "patient_context": {
+    "patient_id": "BN-TEST-000001",
+    "patient_id_issuer": "PVL-ROBOT-DEV",
+    "encounter_id": "ENC-TEST-000001",
+    "encounter_id_issuer": "PVL-ROBOT-DEV",
+    "binding": {
+      "binding_id": "BIND-TEST-001",
+      "method": "manual",
+      "status": "pending_verification",
+      "bound_at": "2026-10-21T21:56:23.698+07:00"
+    }
+  },
+  "payload": {
+    "measurements": [
+      {
+        "observation_id": "SCALE-001-000104-WT",
+        "local_code": "body_weight",
+        "code": {
+          "system": "http://loinc.org",
+          "code": "29463-7",
+          "display": "Body weight"
+        },
+        "measured_at": "2026-10-21T21:56:23.698+07:00",
+        "status": "final",
+        "value": 64.3,
+        "unit": {
+          "system": "http://unitsofmeasure.org",
+          "code": "kg",
+          "display": "kilogram"
+        },
+        "quality": {
+          "status": "good"
+        }
+      }
+    ]
+  }
+}

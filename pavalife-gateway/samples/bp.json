@@ -1,0 +1,117 @@
+{
+  "schema_version": "2.1",
+  "message_id": "b493f061-b046-4e7a-a361-01ed3a981a05",
+  "message_type": "observation.vitals",
+  "event_time": "2026-10-21T21:56:23.693+07:00",
+  "sequence_no": 101,
+  "facility": {
+    "facility_id": "PVL-ROBOT-DEV"
+  },
+  "gateway": {
+    "gateway_id": "GW-ROBOT-DEV-001",
+    "software_version": "0.2.0",
+    "received_at": "2026-10-21T21:56:23.693+07:00",
+    "published_at": "2026-10-21T21:56:23.693+07:00",
+    "clock_source": "ntp"
+  },
+  "source": {
+    "source_id": "ROBOT-DEV-001",
+    "source_type": "robot_doctor",
+    "connection": "wifi"
+  },
+  "patient_context": {
+    "patient_id": "BN-TEST-000001",
+    "patient_id_issuer": "PVL-ROBOT-DEV",
+    "encounter_id": "ENC-TEST-000001",
+    "encounter_id_issuer": "PVL-ROBOT-DEV",
+    "binding": {
+      "binding_id": "BIND-TEST-001",
+      "method": "manual",
+      "status": "pending_verification",
+      "bound_at": "2026-10-21T21:56:23.693+07:00"
+    }
+  },
+  "payload": {
+    "measurements": [
+      {
+        "observation_id": "BP-001-000101-NIBP",
+        "local_code": "nibp",
+        "code": {
+          "system": "http://loinc.org",
+          "code": "85354-9",
+          "display": "Blood pressure panel"
+        },
+        "measured_at": "2026-10-21T21:56:23.693+07:00",
+        "status": "final",
+        "method": "non-invasive",
+        "components": [
+          {
+            "local_code": "systolic",
+            "code": {
+              "system": "http://loinc.org",
+              "code": "8480-6",
+              "display": "Systolic blood pressure"
+            },
+            "value": 120,
+            "unit": {
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]",
+              "display": "mmHg"
+            }
+          },
+          {
+            "local_code": "diastolic",
+            "code": {
+              "system": "http://loinc.org",
+              "code": "8462-4",
+              "display": "Diastolic blood pressure"
+            },
+            "value": 80,
+            "unit": {
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]",
+              "display": "mmHg"
+            }
+          },
+          {
+            "local_code": "mean",
+            "code": {
+              "system": "http://loinc.org",
+              "code": "8478-0",
+              "display": "Mean blood pressure"
+            },
+            "value": 93,
+            "unit": {
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]",
+              "display": "mmHg"
+            }
+          }
+        ],
+        "quality": {
+          "status": "good"
+        }
+      },
+      {
+        "observation_id": "BP-001-000101-PR",
+        "local_code": "pulse_rate",
+        "code": {
+          "system": "http://loinc.org",
+          "code": "8867-4",
+          "display": "Heart rate"
+        },
+        "measured_at": "2026-10-21T21:56:23.693+07:00",
+        "status": "final",
+        "value": 78,
+        "unit": {
+          "system": "http://unitsofmeasure.org",
+          "code": "/min",
+          "display": "beats/minute"
+        },
+        "quality": {
+          "status": "good"
+        }
+      }
+    ]
+  }
+}
