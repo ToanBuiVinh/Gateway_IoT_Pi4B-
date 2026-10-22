@@ -18,6 +18,12 @@ docker compose up -d
 # Giao diện: mở http://localhost:8042  trên trình duyệt
 ```
 
+> **Không có Docker?** Tải **Orthanc bản cài đặt Windows** tại
+> https://www.orthanc-server.com/download.php (đã kèm plugin DICOMweb), cài rồi bật
+> DICOMweb trong `Configuration` (xem `orthanc.json` mẫu ở đây). Hoặc **bỏ qua Orthanc**:
+> chạy `python imaging/wrap_and_publish.py` (không `--stow`) chỉ để tạo file `.dcm` và
+> xem bản tin `imaging.study` — vẫn kiểm chứng được luồng đóng gói DICOM + thông báo.
+
 ## 3. (Tuỳ chọn) Broker cục bộ để nhận thông báo
 Xem [`../local-test/README.md`](../local-test/README.md): `docker compose up -d` trong
 `local-test/`, rồi mở subscriber:

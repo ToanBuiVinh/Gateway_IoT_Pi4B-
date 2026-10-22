@@ -77,14 +77,15 @@ python pvl_send.py all                                     # tất cả bản ti
 ```
 
 ### 🧪 Test cục bộ — gửi lên broker của chính bạn
-Không cần broker PavaLife thật. Dựng Mosquitto local rồi gửi/nhận — xem
-[`local-test/README.md`](local-test/README.md):
-```bash
-# 1) broker cục bộ:  cd local-test && docker compose up -d   (hoặc chạy mosquitto)
-# 2) nghe:
-python tools/pvl_subscribe.py
-# 3) gửi (cửa sổ khác):
-python pvl_send.py all --local --publish        # -> mqtt://localhost:1883
+Không cần broker PavaLife thật, **không cần Docker**. Xem [`local-test/README.md`](local-test/README.md):
+```powershell
+REM 1) broker cục bộ (Windows, không Docker): cài 1 lần rồi chạy
+winget install EclipseFoundation.Mosquitto
+cd local-test  &  start_broker.bat          REM hoặc: mosquitto -c mosquitto.conf -v
+REM 2) nghe (cửa sổ khác):
+python tools\pvl_subscribe.py
+REM 3) gửi (cửa sổ khác):
+python pvl_send.py all --local --publish     REM -> mqtt://localhost:1883
 ```
 
 ### 🖼️ Đường DICOM thật (pydicom + Orthanc)
