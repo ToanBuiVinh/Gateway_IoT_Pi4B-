@@ -1,0 +1,97 @@
+# =====================================================================
+# CẤU HÌNH GATEWAY - Raspberry Pi 4B  (kiến trúc asyncio event-driven)
+# =====================================================================
+
+gateway:
+  id: "gw-pi4b-01"            # Định danh gateway (đính vào payload gửi cloud)
+  name: "Gateway IoT Pi4B"
+  location: "Nha xuong A"
+
+# --- MQTT broker cục bộ (Mosquitto trên Pi) — nơi 10 node publish về ---
+local_broker:
+  host: "127.0.0.1"
+  port: 1883                 # 1883 (không TLS) hoặc 8883 (TLS)
+  # Bảo mật: tài khoản gateway (tránh anonymous). Lấy từ biến môi trường.
+  username: "${LOCAL_MQTT_USER:-gateway}"
+  password: "${LOCAL_MQTT_PASS:-}"
+  # TLS cho broker cục bộ (bật khi muốn mã hoá cả trong LAN). Đổi port -> 8883.
+  tls_enabled: false
+  tls_ca_cert: "certs/ca.crt"
+  tls_client_cert: ""        # mTLS (tuỳ chọn): chứng chỉ client của gateway
+  tls_client_key: ""
+  tls_insecure: false        # true = bỏ kiểm tra cert (CHỈ dev/tự ký)
+  base_topic: "iot/nodes"    # Node publish (uplink) vào <base_topic>/<node_id>
+  command_topic: "iot/cmd"   # Gateway publish lệnh (downlink) vào <command_topic>/<node_id>
+  command_qos: 1
+  ack_topic: "iot/ack"       # Node publish phản hồi vào <ack_topic>/<node_id>, gateway subscribe
+  keepalive: 60
+
+# --- Cloud MQTT Client (TLS/SSL) — nơi gateway đẩy dữ liệu lên ---
+cloud:
+  enabled: true              # false => chạy cục bộ, mọi dữ liệu buffer vào SQLite
+  host: "your-cloud-broker.example.com"
+  port: 8883
+  tls: true                  # true => bật TLS/SSL (khuyến nghị luôn bật với cloud)
+  ca_cert: ""                # (tuỳ chọn) đường dẫn CA cert; trống = dùng CA hệ thống
+  client_cert: ""            # mTLS (tuỳ chọn): chứng chỉ client (vd AWS IoT Core)
+  client_key: ""             # mTLS: khoá riêng client
+  tls_insecure: false        # true = bỏ kiểm tra cert (CHỈ dev; KHÔNG dùng thật)
+  # Bảo mật: mật khẩu lấy từ biến môi trường, KHÔNG hardcode trong file này.
+  username: "${CLOUD_MQTT_USER:-}"
+  password: "${CLOUD_MQTT_PASS:-}"
+  keepalive: 30
+  publish_topic: "tenant/gw-pi4b-01/telemetry"   # uplink: gateway -> cloud
+  qos: 1                     # QoS 1 => có PUBACK xác nhận
+  puback_timeout_sec: 10     # Chờ PUBACK tối đa
+  # Downlink (điều khiển 2 chiều): cloud publish lệnh vào <command_topic>/<node_id>,
+  # gateway subscribe "<command_topic>/+" rồi relay xuống node qua broker cục bộ.
+  command_topic: "tenant/gw-pi4b-01/cmd"
+  command_qos: 1
+  # Command/ack: node phản hồi kết quả thực thi, gateway relay lên cloud.
+  ack_topic: "tenant/gw-pi4b-01/ack"
+
+# --- Cơ sở dữ liệu đệm cục bộ (SQLite + WAL) ---
+storage:
+  path: "data/gateway.db"
+  max_buffer_rows: 200000    # Trần bản ghi (chống tràn khi offline dài)
+
+# --- Pipeline nạp dữ liệu (RAM queue + batching) ---
+pipeline:
+  ingest_queue_max: 10000    # Sức chứa asyncio.Queue trên RAM
+  db_batch_min: 10           # Gom tối thiểu 10 tin -> 1 transaction
+  db_batch_max: 20           # ... hoặc tối đa 20 tin
+  db_batch_timeout_sec: 3    # ... hoặc sau tối đa 3 giây thì ghi
+
+# --- Store-and-Forward (đẩy bù dữ liệu đã buffer khi có mạng lại) ---
+store_forward:
+  chunk_size: 50             # Đọc mỗi lô 20–50 bản ghi (FIFO id ASC)
+  throttle_ms: 50            # Nghỉ 50ms giữa các lô (rate limiting)
+  backoff_start_sec: 2       # Exponential backoff: 2,4,8,...
+  backoff_max_sec: 300       # ... trần 300s
+  idle_recheck_sec: 10       # Khi online & hết buffer, chu kỳ rà lại
+
+# --- Network Monitor (giám sát kết nối) ---
+network_monitor:
+  interval_sec: 5            # Chu kỳ kiểm tra 5 giây
+  probe_timeout_sec: 3       # Timeout khi thăm dò TCP tới cloud broker
+
+# --- Bảo trì / dọn đĩa ---
+maintenance:
+  disk_check_interval_sec: 300   # Kiểm tra dung lượng mỗi 5 phút
+  disk_threshold_pct: 85         # Vượt 85% => dọn dẹp
+  cleanup_delete_batch: 5000     # Số bản ghi xoá mỗi lần dọn
+
+# --- Bảo mật / chống flood ở tầng gateway ---
+security:
+  flood_guard:
+    enabled: true
+    max_msgs_per_sec: 5        # tốc độ trung bình cho phép mỗi node
+    burst: 10                  # cho phép cụm ngắn (token-bucket)
+    max_payload_bytes: 2048    # payload lớn hơn -> loại (chống flood dung lượng)
+    warn_interval_sec: 10      # giới hạn tần suất log cảnh báo mỗi node
+
+# --- Ghi log ---
+logging:
+  level: "INFO"              # DEBUG | INFO | WARNING | ERROR
+  file: "logs/gateway.log"
+  node_offline_after_sec: 120

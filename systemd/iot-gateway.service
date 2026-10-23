@@ -1,0 +1,22 @@
+[Unit]
+Description=IoT Gateway (Raspberry Pi 4B) - quan ly 10 node MQTT
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Doi user/duong dan cho dung may cua ban (mac dinh Pi la user "pi").
+User=pi
+WorkingDirectory=/opt/iot-gateway
+# Bảo mật: nạp mật khẩu MQTT từ file bí mật (chmod 600), KHÔNG ghi trong unit này.
+# Tạo /etc/iot-gateway/secrets.env theo mẫu .env.example.
+EnvironmentFile=-/etc/iot-gateway/secrets.env
+ExecStart=/opt/iot-gateway/.venv/bin/python -m src.main
+Restart=always
+RestartSec=10
+# Ghi log ra journald: xem bang `journalctl -u iot-gateway -f`
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
