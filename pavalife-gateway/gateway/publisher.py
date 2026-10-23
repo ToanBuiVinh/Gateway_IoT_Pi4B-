@@ -36,14 +36,16 @@ def _parse(url: str) -> Tuple[str, int, str, bool, bool]:
 class PavaLifePublisher:
     def __init__(self, broker_url: str = reg.BROKER_URL, *, username: str = "",
                  password: str = "", client_id: str = None,
-                 ca_cert: str = None, insecure: bool = False) -> None:
+                 ca_cert: str = None, insecure: bool = False,
+                 mqtt_version: str = "5") -> None:
         import paho.mqtt.client as mqtt
 
         self._host, self._port, self._path, self._ws, self._tls = _parse(broker_url)
         transport = "websockets" if self._ws else "tcp"
+        proto = mqtt.MQTTv311 if str(mqtt_version) in ("311", "3.1.1", "v311") else mqtt.MQTTv5
         self._client = mqtt.Client(
             client_id=client_id or f"{reg.GATEWAY_ID}-pub",
-            protocol=mqtt.MQTTv5, transport=transport,
+            protocol=proto, transport=transport,
         )
         if self._ws:
             self._client.ws_set_options(path=self._path)

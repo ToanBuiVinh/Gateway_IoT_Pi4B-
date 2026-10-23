@@ -35,10 +35,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--broker", default="mqtt://localhost:1883")
     ap.add_argument("--topic", default=TOPIC)
+    ap.add_argument("--mqtt-version", choices=["5", "311"], default="311",
+                    help="mac dinh 311 (hop mini_broker va Mosquitto)")
     args = ap.parse_args()
     host, port, path, ws, tls = _parse(args.broker)
 
-    c = mqtt.Client(client_id="pvl-subscriber", protocol=mqtt.MQTTv5,
+    proto = mqtt.MQTTv311 if args.mqtt_version == "311" else mqtt.MQTTv5
+    c = mqtt.Client(client_id="pvl-subscriber", protocol=proto,
                     transport="websockets" if ws else "tcp")
     if ws:
         c.ws_set_options(path=path)

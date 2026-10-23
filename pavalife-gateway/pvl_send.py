@@ -73,11 +73,14 @@ def main() -> int:
     ap.add_argument("--publish", action="store_true", help="gui that len broker")
     ap.add_argument("--broker", default=reg.BROKER_URL, help="URL broker (mqtt/mqtts/ws/wss)")
     ap.add_argument("--local", action="store_true", help="tat: gui len broker cuc bo mqtt://localhost:1883")
+    ap.add_argument("--mqtt-version", choices=["5", "311"], default=None,
+                    help="mac dinh 5; --local tu dung 311 (hop mini_broker / Mosquitto)")
     ap.add_argument("--username", default="")
     ap.add_argument("--password", default="")
     args = ap.parse_args()
     if args.local:
         args.broker = "mqtt://localhost:1883"
+    mqtt_version = args.mqtt_version or ("311" if args.local else "5")
 
     if args.kind == "vitals":
         devices = args.devices.split(",") if args.devices else VITALS_KEYS
@@ -97,7 +100,8 @@ def main() -> int:
 
     if args.publish:
         from gateway.publisher import PavaLifePublisher
-        pub = PavaLifePublisher(args.broker, username=args.username, password=args.password)
+        pub = PavaLifePublisher(args.broker, username=args.username, password=args.password,
+                                mqtt_version=mqtt_version)
         pub.connect()
         for m in msgs:
             pub.publish(m)

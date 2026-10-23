@@ -8,7 +8,19 @@ Mosquitto chạy local (`mqtt://localhost:1883`).
 
 ## 1. Khởi động broker cục bộ
 
-### Cách A — Mosquitto bản cài đặt (KHÔNG cần Docker) ✅ khuyên dùng trên Windows
+### Cách 0 — Broker thuần Python (KHÔNG tải gì cả) ✅ nhanh nhất
+Không cần cài Mosquitto, không cần Docker — chỉ cần Python (bạn đã có).
+```powershell
+cd pavalife-gateway\local-test
+start_mini_broker.bat                 REM hoặc: python mini_broker.py
+```
+Giữ cửa sổ này chạy (broker ở `mqtt://localhost:1883`). Đây là broker tối giản
+(MQTT 3.1.1, QoS 0/1, wildcard `+` `#`) chỉ để test cục bộ.
+
+> Client vẫn cần `paho-mqtt`: `pip install -r ..\requirements.txt` (cài từ PyPI, không
+> phải tải từ mosquitto.org). `pvl_send.py --local` và `pvl_subscribe.py` tự dùng MQTT 3.1.1.
+
+### Cách A — Mosquitto bản cài đặt (nếu muốn broker đầy đủ)
 Cài 1 lần (chọn 1):
 ```powershell
 winget install EclipseFoundation.Mosquitto
