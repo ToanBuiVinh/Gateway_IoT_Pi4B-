@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pavalife.com/schema/device_data_contract_v2_1.schema.json",
+  "title": "PavaLife Device Data Contract v2.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "message_id", "message_type", "event_time",
+               "sequence_no", "facility", "gateway", "source", "payload"],
+  "properties": {
+    "schema_version": { "const": "2.1" },
+    "message_id": { "type": "string", "format": "uuid" },
+    "message_type": {
+      "enum": ["observation.vitals", "observation.lab", "observation.waveform",
+               "observation.audio", "imaging.study", "event.alarm", "device.status"]
+    },
+    "event_time": { "type": "string", "format": "date-time" },
+    "sequence_no": { "type": "integer", "minimum": 0 },
+    "facility": { "$ref": "#/$defs/facility" },
+    "gateway": { "$ref": "#/$defs/gateway" },
+    "source": { "$ref": "#/$defs/source" },
+    "patient_context": { "$ref": "#/$defs/patientContext" },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    { "if": { "properties": { "message_type": { "const": "observation.vitals" } }, "required": ["message_type"] },
+      "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/vitalsPayload" } } } },
+    { "if": { "properties": { "message_type": { "const": "observation.waveform" } }, "required": ["message_type"] },
+      "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/vitalsPayload" } } } },
+    { "if": { "properties": { "message_type": { "const": "observation.lab" } }, "required": ["message_type"] },
+      "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/labPayload" } } } },
+    { "if": { "properties": { "message_type": { "const": "imaging.study" } }, "required": ["message_type"] },
+      "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/imagingPayload" } } } },
+    { "if": { "properties": { "message_type": { "const": "observation.audio" } }, "required": ["message_type"] },
+      "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/audioPayload" } } } },
+    { "if": { "properties": { "message_type": { "const": "device.status" } }, "required": ["message_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/statusPayload" } } } }
+  ],
+  "$defs": {
+    "facility": {
+      "type": "object", "additionalProperties": false,
+      "required": ["facility_id"],
+      "properties": {
+        "facility_id": { "type": "string" },
+        "department_id": { "type": "string" },
+        "room_id": { "type": "string" },
+        "bed_id": { "type": "string" }
+      }
+    },
+    "gateway": {
+      "type": "object", "additionalProperties": false,
+      "required": ["gateway_id", "received_at", "published_at", "clock_source"],
+      "properties": {
+        "gateway_id": { "type": "string" },
+        "software_version": { "type": "string" },
+        "received_at": { "type": "string", "format": "date-time" },
+        "published_at": { "type": "string", "format": "date-time" },
+        "clock_source": { "enum": ["ntp", "ptp", "rtc", "unsynced", "unknown"] }
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_id", "source_type"],
+      "properties": {
+        "source_id": { "type": "string" },
+        "source_type": { "enum": ["robot_doctor", "lab_analyzer", "lis", "patient_monitor", "imaging_device", "auscultation_device", "other"] },
+        "connection": { "enum": ["ble", "ethernet", "wifi", "serial", "https", "vendor_api", "other"] }
+      }
+    },
+    "patientContext": {
+      "type": "object", "additionalProperties": false,
+      "required": ["patient_id", "patient_id_issuer", "encounter_id", "encounter_id_issuer", "binding"],
+      "properties": {
+        "patient_id": { "type": ["string", "null"] },
+        "patient_id_issuer": { "type": ["string", "null"] },
+        "encounter_id": { "type": ["string", "null"] },
+        "encounter_id_issuer": { "type": ["string", "null"] },
+        "binding": {
+          "type": "object", "additionalProperties": false,
+          "required": ["method", "status", "bound_at"],
+          "properties": {
+            "binding_id": { "type": "string" },
+            "method": { "enum": ["qr_scan", "his_api", "manual", "unknown"] },
+            "status": { "enum": ["pending_verification", "verified", "rejected", "unknown"] },
+            "bound_at": { "type": "string", "format": "date-time" }
+          }
+        }
+      }
+    },
+    "code": {
+      "type": "object", "additionalProperties": false,
+      "required": ["system", "code", "display"],
+      "properties": {
+        "system": { "type": "string" },
+        "code": { "type": "string" },
+        "display": { "type": "string" }
+      }
+    },
+    "unit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["system", "code", "display"],
+      "properties": {
+        "system": { "type": "string" },
+        "code": { "type": "string" },
+        "display": { "type": "string" }
+      }
+    },
+    "quality": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["good", "suspect", "invalid", "unavailable"] },
+        "reason": { "type": "string" }
+      }
+    },
+    "component": {
+      "type": "object", "additionalProperties": false,
+      "required": ["local_code", "code"],
+      "properties": {
+        "local_code": { "type": "string" },
+        "code": { "$ref": "#/$defs/code" },
+        "value": { "type": "number" },
+        "unit": { "$ref": "#/$defs/unit" },
+        "data_absent_reason": { "type": "string" }
+      },
+      "oneOf": [
+        { "required": ["value", "unit"] },
+        { "required": ["data_absent_reason"] }
+      ]
+    },
+    "measurement": {
+      "type": "object", "additionalProperties": false,
+      "required": ["observation_id", "local_code", "code", "measured_at", "status", "quality"],
+      "properties": {
+        "observation_id": { "type": "string" },
+        "local_code": { "type": "string" },
+        "code": { "$ref": "#/$defs/code" },
+        "measured_at": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["registered", "preliminary", "final", "amended", "corrected",
+                             "cancelled", "entered-in-error", "unknown"] },
+        "quality": { "$ref": "#/$defs/quality" },
+        "method": { "type": "string" },
+        "body_site": { "type": "string" },
+        "value": { "type": "number" },
+        "unit": { "$ref": "#/$defs/unit" },
+        "components": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/component" } },
+        "data_absent_reason": { "type": "string" }
+      },
+      "oneOf": [
+        { "required": ["value", "unit"] },
+        { "required": ["components"] },
+        { "required": ["data_absent_reason"] }
+      ]
+    },
+    "vitalsPayload": {
+      "type": "object", "additionalProperties": false,
+      "required": ["measurements"],
+      "properties": {
+        "measurements": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/measurement" } }
+      }
+    },
+    "labPayload": {
+      "type": "object", "additionalProperties": false,
+      "required": ["specimen", "report", "measurements"],
+      "properties": {
+        "specimen": {
+          "type": "object", "additionalProperties": false,
+          "required": ["specimen_id", "specimen_type", "collected_at"],
+          "properties": {
+            "specimen_id": { "type": "string" },
+            "specimen_type": { "type": "string" },
+            "collected_at": { "type": "string", "format": "date-time" }
+          }
+        },
+        "report": {
+          "type": "object", "additionalProperties": false,
+          "required": ["report_id", "status"],
+          "properties": {
+            "report_id": { "type": "string" },
+            "status": { "enum": ["registered", "partial", "preliminary", "final",
+                                 "amended", "corrected", "cancelled", "entered-in-error", "unknown"] },
+            "issued_at": { "type": ["string", "null"], "format": "date-time" },
+            "verified_at": { "type": ["string", "null"], "format": "date-time" }
+          }
+        },
+        "measurements": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/measurement" } }
+      }
+    },
+    "imagingPayload": {
+      "type": "object", "additionalProperties": false,
+      "description": "Thong bao anh (control plane). KHONG chua pixel; pixel tai qua DICOMweb/URL (data plane).",
+      "required": ["study", "storage"],
+      "properties": {
+        "study": {
+          "type": "object", "additionalProperties": false,
+          "required": ["study_instance_uid", "modality", "started_at"],
+          "properties": {
+            "study_instance_uid": { "type": "string" },
+            "accession_number": { "type": "string" },
+            "modality": { "type": "string" },
+            "started_at": { "type": "string", "format": "date-time" },
+            "number_of_series": { "type": "integer", "minimum": 0 },
+            "number_of_instances": { "type": "integer", "minimum": 0 },
+            "description": { "type": "string" },
+            "body_site": { "type": "string" }
+          }
+        },
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["series_instance_uid", "modality"],
+            "properties": {
+              "series_instance_uid": { "type": "string" },
+              "modality": { "type": "string" },
+              "number_of_instances": { "type": "integer", "minimum": 0 },
+              "body_site": { "type": "string" }
+            }
+          }
+        },
+        "storage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "enum": ["dicomweb", "dimse", "s3", "pacs", "other"] },
+            "stored_at": { "type": "string", "format": "date-time" },
+            "wado_rs_study": { "type": "string" },
+            "stow_rs": { "type": "string" },
+            "thumbnail_url": { "type": "string" },
+            "size_bytes": { "type": "integer", "minimum": 0 },
+            "transfer_syntax": { "type": "string" }
+          }
+        }
+      }
+    },
+    "audioPayload": {
+      "type": "object", "additionalProperties": false,
+      "description": "Nghe tim/phoi (auscultation). File LƯU la WAV/FLAC lossless (bao toan tin hieu); MQTT chi tham chieu. live = nghe truc tiep do tre thap.",
+      "required": ["recording"],
+      "properties": {
+        "recording": {
+          "type": "object", "additionalProperties": false,
+          "required": ["recording_id", "format", "codec", "sample_rate_hz", "channels", "lossless"],
+          "properties": {
+            "recording_id": { "type": "string" },
+            "modality": { "type": "string" },
+            "format": { "enum": ["wav", "flac"] },
+            "codec": { "enum": ["pcm_s16le", "pcm_s24le", "pcm_f32le", "flac"] },
+            "sample_rate_hz": { "type": "integer", "minimum": 1 },
+            "bit_depth": { "type": "integer" },
+            "channels": { "type": "integer", "minimum": 1 },
+            "duration_sec": { "type": "number", "minimum": 0 },
+            "lossless": { "type": "boolean" }
+          }
+        },
+        "acquisition": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "body_site": { "type": "string" },
+            "filter_mode": { "type": "string" },
+            "gain_db": { "type": "number" },
+            "note": { "type": "string" }
+          }
+        },
+        "storage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["type", "url"],
+          "properties": {
+            "type": { "enum": ["s3", "http", "dicom", "other"] },
+            "url": { "type": "string" },
+            "sha256": { "type": "string" },
+            "size_bytes": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "live": {
+          "type": "object", "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "protocol": { "enum": ["webrtc", "rtp", "websocket", "other"] },
+            "endpoint": { "type": "string" },
+            "codec": { "type": "string" },
+            "latency_target_ms": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "statusPayload": {
+      "type": "object", "additionalProperties": false,
+      "required": ["connectivity", "sensor_health"],
+      "properties": {
+        "connectivity": { "enum": ["online", "offline", "degraded"] },
+        "sensor_health": { "enum": ["ok", "degraded", "fault", "unknown"] },
+        "battery_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "last_measurement_at": { "type": "string", "format": "date-time" },
+        "hardware_fault_codes": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

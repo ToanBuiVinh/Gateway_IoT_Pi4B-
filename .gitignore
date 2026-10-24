@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Dữ liệu runtime
+*.db
+*.sqlite
+*.sqlite3
+data/
+logs/
+*.log
+
+# Cấu hình bí mật (copy từ *.example rồi điền thông tin thật)
+config/secrets.yaml
+.env
+
+# Bí mật MQTT / TLS — KHÔNG BAO GIỜ commit khoá riêng & mật khẩu
+certs/
+*.key
+*.pem
+mqtt_credentials.txt
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store

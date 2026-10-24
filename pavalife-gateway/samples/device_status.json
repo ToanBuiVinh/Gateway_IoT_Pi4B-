@@ -1,0 +1,29 @@
+{
+  "schema_version": "2.1",
+  "message_id": "cbb8ee55-f3e1-4844-8744-e39f9321ab58",
+  "message_type": "device.status",
+  "event_time": "2026-10-21T21:56:23.701+07:00",
+  "sequence_no": 100,
+  "facility": {
+    "facility_id": "PVL-ROBOT-DEV"
+  },
+  "gateway": {
+    "gateway_id": "GW-ROBOT-DEV-001",
+    "software_version": "0.2.0",
+    "received_at": "2026-10-21T21:56:23.701+07:00",
+    "published_at": "2026-10-21T21:56:23.701+07:00",
+    "clock_source": "ntp"
+  },
+  "source": {
+    "source_id": "ROBOT-DEV-001",
+    "source_type": "robot_doctor",
+    "connection": "wifi"
+  },
+  "payload": {
+    "connectivity": "online",
+    "battery_percent": 85,
+    "sensor_health": "ok",
+    "last_measurement_at": "2026-10-21T21:56:23.701+07:00",
+    "hardware_fault_codes": []
+  }
+}

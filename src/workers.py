@@ -1,0 +1,282 @@
+"""Các coroutine worker của pipeline asyncio.
+
+    ingest_queue ──► ingestion_worker ──(online)──► CloudPublisher
+                                       └─(offline/fail)─► db_queue
+    db_queue ─────► database_worker ──(batch)──► SQLite (telemetry_buffer)
+    (khi có mạng) store_and_forward_worker ─► đọc buffer FIFO ─► CloudPublisher
+    disk_cleanup_worker ─► dọn đĩa định kỳ
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from typing import TYPE_CHECKING, Any, Dict
+
+from .db import Database
+from .node_manager import NodeManager
+from .ratelimit import FloodGuard
+from .state import AppState
+
+if TYPE_CHECKING:
+    # Chỉ import lúc type-check: CloudPublisher/LocalMqttClient kéo theo paho, còn
+    # lõi worker không cần paho để chạy/kiểm thử.
+    from .cloud_publisher import CloudPublisher
+    from .mqtt_local import LocalMqttClient
+
+log = logging.getLogger("gateway.workers")
+
+
+class Backoff:
+    """Exponential backoff: start, x2 mỗi lần, trần maximum."""
+
+    def __init__(self, start: float, maximum: float) -> None:
+        self.start = start
+        self.max = maximum
+        self.cur = start
+
+    def next(self) -> float:
+        v = self.cur
+        self.cur = min(self.cur * 2, self.max)
+        return v
+
+    def reset(self) -> None:
+        self.cur = self.start
+
+
+# ======================================================================
+# 1) INGESTION WORKER: đọc RAM queue, online->publish thẳng, offline->DB
+# ======================================================================
+async def ingestion_worker(
+    state: AppState,
+    ingest_queue: "asyncio.Queue",
+    db_queue: "asyncio.Queue",
+    publisher: CloudPublisher,
+    nodes: NodeManager,
+    guard: "FloodGuard | None" = None,
+) -> None:
+    log.info("Ingestion worker: san sang")
+    while True:
+        node_id, payload, recv_ts = await ingest_queue.get()
+        try:
+            # Chống flood: chặn payload quá lớn hoặc vượt tốc độ trước khi xử lý.
+            if guard is not None:
+                ok, reason = guard.check(node_id, payload)
+                if not ok:
+                    if reason == "size":
+                        state.stats.oversized += 1
+                    else:
+                        state.stats.rate_limited += 1
+                    if guard.should_warn(node_id):
+                        log.warning("Flood guard: chan bot tin tu node %s (%s)",
+                                    node_id, reason)
+                    continue
+
+            reading = nodes.handle_payload(node_id, payload)
+            if reading is None:
+                state.stats.dropped += 1
+                continue
+            state.stats.received += 1
+
+            sent = False
+            if state.is_online:
+                sent = await publisher.publish(reading.to_cloud_dict(False))
+                if sent:
+                    state.stats.published_direct += 1
+
+            if not sent:
+                # Offline hoặc gửi trực tiếp thất bại -> định tuyến về Database Worker.
+                await db_queue.put((reading.node_id, reading.payload_json(), recv_ts))
+        finally:
+            ingest_queue.task_done()
+
+
+# ======================================================================
+# 2) DATABASE WORKER: gom lô (10-20 tin hoặc 3s) -> 1 transaction
+# ======================================================================
+async def database_worker(
+    cfg: Dict[str, Any],
+    db: Database,
+    db_queue: "asyncio.Queue",
+    state: AppState,
+) -> None:
+    batch_min = int(cfg.get("db_batch_min", 10))
+    batch_max = int(cfg.get("db_batch_max", 20))
+    timeout = float(cfg.get("db_batch_timeout_sec", 3))
+    loop = asyncio.get_running_loop()
+    log.info("Database worker: batch %d-%d hoac %.1fs", batch_min, batch_max, timeout)
+
+    while True:
+        # Chờ tin đầu tiên (chặn cho tới khi có dữ liệu offline).
+        first = await db_queue.get()
+        batch = [first]
+        db_queue.task_done()
+
+        deadline = loop.time() + timeout
+        while len(batch) < batch_max:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
+            try:
+                item = await asyncio.wait_for(db_queue.get(), timeout=remaining)
+            except asyncio.TimeoutError:
+                break
+            batch.append(item)
+            db_queue.task_done()
+            # Đủ tối thiểu và hàng đợi tạm rỗng -> ghi ngay, không chờ hết 3s.
+            if len(batch) >= batch_min and db_queue.empty():
+                break
+
+        written = await asyncio.to_thread(db.insert_batch, batch)
+        state.stats.buffered += written
+        log.info("Da buffer %d ban ghi (1 transaction) | cho gui: %d",
+                 written, await asyncio.to_thread(db.pending_count))
+
+
+# ======================================================================
+# 3) STORE-AND-FORWARD WORKER: đẩy bù buffer khi có mạng lại
+# ======================================================================
+async def store_and_forward_worker(
+    cfg: Dict[str, Any],
+    db: Database,
+    publisher: CloudPublisher,
+    state: AppState,
+) -> None:
+    chunk = int(cfg.get("chunk_size", 50))
+    throttle = float(cfg.get("throttle_ms", 50)) / 1000.0
+    idle = float(cfg.get("idle_recheck_sec", 10))
+    backoff = Backoff(
+        float(cfg.get("backoff_start_sec", 2)),
+        float(cfg.get("backoff_max_sec", 300)),
+    )
+    log.info("Store-and-Forward worker: chunk=%d throttle=%.0fms", chunk, throttle * 1000)
+
+    while True:
+        # Ngủ hoàn toàn khi offline (tiết kiệm CPU).
+        await state.online.wait()
+
+        rows = await asyncio.to_thread(db.fetch_pending, chunk)
+        if not rows:
+            backoff.reset()
+            await asyncio.sleep(idle)      # hết buffer -> rà lại sau
+            continue
+
+        sent_ids = []
+        for row_id, _node_id, payload_json, _created_at in rows:
+            if not state.is_online:
+                break                      # rớt mạng giữa chừng -> dừng
+            payload = json.loads(payload_json)
+            payload["buffered"] = True     # cờ báo cloud: dữ liệu gửi bù
+            ok = await publisher.publish(payload)
+            if not ok:
+                break
+            sent_ids.append(row_id)
+            state.stats.forwarded += 1
+            await asyncio.sleep(throttle)  # rate limiting giữa các bản ghi
+
+        if sent_ids:
+            await asyncio.to_thread(db.mark_sent, sent_ids)  # cập nhật sau PUBACK
+
+        if len(sent_ids) < len(rows):
+            # Có lỗi/rớt mạng -> backoff tăng dần trước khi thử lại.
+            wait = backoff.next()
+            log.warning("SF: gui %d/%d, backoff %.0fs", len(sent_ids), len(rows), wait)
+            await asyncio.sleep(wait)
+        else:
+            backoff.reset()
+            await asyncio.sleep(throttle)  # nghỉ ngắn giữa các lô
+
+
+# ======================================================================
+# 4) COMMAND WORKER: relay lệnh downlink từ cloud xuống node (điều khiển 2 chiều)
+# ======================================================================
+async def command_worker(
+    cmd_queue: "asyncio.Queue",
+    local: "LocalMqttClient",
+    nodes: NodeManager,
+    state: AppState,
+) -> None:
+    log.info("Command worker: san sang relay lenh downlink")
+    while True:
+        node_id, payload = await cmd_queue.get()
+        try:
+            if not nodes.known(node_id):
+                state.stats.commands_dropped += 1
+                log.warning("Lenh cho node LA: %s -> bo qua", node_id)
+                continue
+            # Kiểm tra payload là JSON hợp lệ trước khi relay (chống rác).
+            try:
+                json.loads(payload.decode("utf-8"))
+            except (ValueError, UnicodeDecodeError):
+                state.stats.commands_dropped += 1
+                log.warning("Lenh cho %s khong phai JSON hop le -> bo qua", node_id)
+                continue
+            # Relay xuống node qua broker cục bộ (asyncio.to_thread vì paho publish
+            # có thể chặn nhẹ khi hàng đợi đầy).
+            ok = await asyncio.to_thread(local.publish_command, node_id, payload)
+            if ok:
+                state.stats.commands_relayed += 1
+                log.info("Relay lenh -> node %s", node_id)
+            else:
+                state.stats.commands_dropped += 1
+        finally:
+            cmd_queue.task_done()
+
+
+# ======================================================================
+# 5) ACK WORKER: relay phản hồi (command/ack) từ node lên cloud
+# ======================================================================
+async def ack_worker(
+    ack_queue: "asyncio.Queue",
+    publisher: "CloudPublisher",
+    nodes: NodeManager,
+    gateway_id: str,
+    state: AppState,
+) -> None:
+    log.info("Ack worker: san sang relay phan hoi len cloud")
+    while True:
+        node_id, payload = await ack_queue.get()
+        try:
+            if not nodes.known(node_id):
+                state.stats.acks_dropped += 1
+                log.warning("Ack tu node LA: %s -> bo qua", node_id)
+                continue
+            try:
+                data = json.loads(payload.decode("utf-8"))
+            except (ValueError, UnicodeDecodeError):
+                state.stats.acks_dropped += 1
+                log.warning("Ack tu %s khong phai JSON hop le -> bo qua", node_id)
+                continue
+            # Bổ sung ngữ cảnh gateway để cloud truy vết.
+            data.setdefault("node_id", node_id)
+            data.setdefault("gateway_id", gateway_id)
+            # Ack là realtime (best-effort): chỉ gửi khi cloud online.
+            ok = await publisher.publish_ack(node_id, data)
+            if ok:
+                state.stats.acks_relayed += 1
+                log.info("Relay ack <- node %s (cmd_id=%s)", node_id, data.get("cmd_id"))
+            else:
+                state.stats.acks_dropped += 1
+                log.warning("Khong relay duoc ack tu %s (cloud offline?)", node_id)
+        finally:
+            ack_queue.task_done()
+
+
+# ======================================================================
+# 6) DISK CLEANUP WORKER: dọn đĩa khi vượt ngưỡng
+# ======================================================================
+async def disk_cleanup_worker(cfg: Dict[str, Any], db: Database) -> None:
+    interval = float(cfg.get("disk_check_interval_sec", 300))
+    threshold = float(cfg.get("disk_threshold_pct", 85))
+    batch = int(cfg.get("cleanup_delete_batch", 5000))
+    log.info("Disk cleanup worker: nguong %.0f%%, moi %.0fs", threshold, interval)
+
+    while True:
+        await asyncio.sleep(interval)
+        used = await asyncio.to_thread(db.disk_usage_percent)
+        if used < threshold:
+            continue
+        log.warning("Dia %.1f%% >= %.0f%% -> don du lieu da gui", used, threshold)
+        deleted = await asyncio.to_thread(db.cleanup_sent, batch)
+        await asyncio.to_thread(db.checkpoint)
+        log.info("Da xoa %d ban ghi da dong bo, gop WAL", deleted)

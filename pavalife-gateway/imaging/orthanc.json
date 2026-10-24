@@ -1,0 +1,12 @@
+{
+  "Name": "PVL-Orthanc-Dev",
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": false,
+  "DicomWeb": {
+    "Enable": true,
+    "Root": "/dicom-web/",
+    "EnableWado": true,
+    "WadoRoot": "/wado"
+  },
+  "OrthancExplorer2": { "Enable": true }
+}

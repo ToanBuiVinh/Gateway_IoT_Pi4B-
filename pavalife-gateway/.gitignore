@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+imaging/out/
+*.dcm
+audio/out/
+.venv/

@@ -1,0 +1,5 @@
+# Thu vien cho duong DICOM (imaging/wrap_and_publish.py)
+pydicom==2.4.4           # tao/doc file DICOM
+dicomweb-client==0.59.1  # STOW-RS/WADO-RS len Orthanc (tuy chon; co fallback requests)
+requests==2.31.0         # fallback upload + goi REST
+paho-mqtt==1.6.1         # publish imaging.study len broker

@@ -1,0 +1,69 @@
+{
+  "schema_version": "2.1",
+  "message_id": "b18c4116-4b7f-4666-9723-9edf1d7bf190",
+  "message_type": "observation.lab",
+  "event_time": "2026-10-21T21:56:23.699+07:00",
+  "sequence_no": 105,
+  "facility": {
+    "facility_id": "PVL-ROBOT-DEV"
+  },
+  "gateway": {
+    "gateway_id": "GW-ROBOT-DEV-001",
+    "software_version": "0.2.0",
+    "received_at": "2026-10-21T21:56:23.699+07:00",
+    "published_at": "2026-10-21T21:56:23.699+07:00",
+    "clock_source": "ntp"
+  },
+  "source": {
+    "source_id": "ROBOT-DEV-001",
+    "source_type": "lab_analyzer",
+    "connection": "wifi"
+  },
+  "patient_context": {
+    "patient_id": "BN-TEST-000001",
+    "patient_id_issuer": "PVL-ROBOT-DEV",
+    "encounter_id": "ENC-TEST-000001",
+    "encounter_id_issuer": "PVL-ROBOT-DEV",
+    "binding": {
+      "binding_id": "BIND-TEST-001",
+      "method": "manual",
+      "status": "pending_verification",
+      "bound_at": "2026-10-21T21:56:23.699+07:00"
+    }
+  },
+  "payload": {
+    "specimen": {
+      "specimen_id": "LAB-001-SPEC-000105",
+      "specimen_type": "capillary_blood",
+      "collected_at": "2026-10-21T21:56:23.699+07:00"
+    },
+    "report": {
+      "report_id": "LAB-001-RPT-000105",
+      "status": "preliminary",
+      "issued_at": null,
+      "verified_at": null
+    },
+    "measurements": [
+      {
+        "observation_id": "LAB-001-000105-UA",
+        "local_code": "uric_acid",
+        "code": {
+          "system": "http://loinc.org",
+          "code": "14933-6",
+          "display": "Urate [Moles/volume] in Serum or Plasma"
+        },
+        "measured_at": "2026-10-21T21:56:23.699+07:00",
+        "status": "preliminary",
+        "value": 360,
+        "unit": {
+          "system": "http://unitsofmeasure.org",
+          "code": "umol/L",
+          "display": "micromole per liter"
+        },
+        "quality": {
+          "status": "good"
+        }
+      }
+    ]
+  }
+}

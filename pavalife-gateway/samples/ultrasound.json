@@ -1,0 +1,63 @@
+{
+  "schema_version": "2.1",
+  "message_id": "7a1c2d3e-0001-4a10-9b20-000000000107",
+  "message_type": "imaging.study",
+  "event_time": "2026-10-21T21:56:23.702+07:00",
+  "sequence_no": 107,
+  "facility": {
+    "facility_id": "PVL-ROBOT-DEV"
+  },
+  "gateway": {
+    "gateway_id": "GW-ROBOT-DEV-001",
+    "software_version": "0.2.0",
+    "received_at": "2026-10-21T21:56:23.702+07:00",
+    "published_at": "2026-10-21T21:56:23.702+07:00",
+    "clock_source": "ntp"
+  },
+  "source": {
+    "source_id": "ROBOT-DEV-001",
+    "source_type": "imaging_device",
+    "connection": "wifi"
+  },
+  "patient_context": {
+    "patient_id": "BN-TEST-000001",
+    "patient_id_issuer": "PVL-ROBOT-DEV",
+    "encounter_id": "ENC-TEST-000001",
+    "encounter_id_issuer": "PVL-ROBOT-DEV",
+    "binding": {
+      "binding_id": "BIND-TEST-001",
+      "method": "manual",
+      "status": "pending_verification",
+      "bound_at": "2026-10-21T21:56:23.702+07:00"
+    }
+  },
+  "payload": {
+    "study": {
+      "study_instance_uid": "1.2.826.0.1.3680043.8.498.100.107",
+      "accession_number": "US-001-ACC-000107",
+      "modality": "US",
+      "started_at": "2026-10-21T21:56:23.702+07:00",
+      "number_of_series": 1,
+      "number_of_instances": 24,
+      "description": "Ultrasound abdomen",
+      "body_site": "Abdomen"
+    },
+    "series": [
+      {
+        "series_instance_uid": "1.2.826.0.1.3680043.8.498.200.107",
+        "modality": "US",
+        "number_of_instances": 24,
+        "body_site": "Abdomen"
+      }
+    ],
+    "storage": {
+      "type": "dicomweb",
+      "stored_at": "2026-10-21T21:56:23.702+07:00",
+      "wado_rs_study": "https://pacs.pavalife.com/dicom-web/studies/1.2.826.0.1.3680043.8.498.100.107",
+      "stow_rs": "https://pacs.pavalife.com/dicom-web/studies",
+      "thumbnail_url": "https://pacs.pavalife.com/dicom-web/studies/1.2.826.0.1.3680043.8.498.100.107/thumbnail",
+      "size_bytes": 10485760,
+      "transfer_syntax": "1.2.840.10008.1.2.4.50"
+    }
+  }
+}

@@ -1,0 +1,190 @@
+<title>Runbook Kết nối Broker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Runbook cụ thể để kết nối gateway với broker MQTT khác: thông tin cần xin, công cụ chẩn đoán, kịch bản kết nối, tham số production, khắc phục lỗi.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: runbook — hero bước, bảng thông tin, khối lệnh, bảng khắc phục, checklist */
+:root{
+  --bg:#eef2f6;--surface:#fff;--surface-2:#f1f5f9;--border:#d5dee7;--fg:#0e1b24;--muted:#5a6c7a;
+  --accent:#1667c9;--accent-weak:#d9e8fb;--good:#1f8a4c;--good-weak:#dcf0e4;--warn:#9a5b06;--warn-weak:#f6ecd6;--crit:#c0352f;--crit-weak:#f6d9d6;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --radius:12px;--shadow:0 1px 2px rgba(16,30,40,.06),0 4px 16px rgba(16,30,40,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b141b;--surface:#111d26;--surface-2:#17242e;--border:#243541;--fg:#e7eff5;--muted:#92a6b4;
+  --accent:#5aa2f0;--accent-weak:#12304d;--good:#4fcc82;--good-weak:#133325;--warn:#e3a94f;--warn-weak:#2e2410;--crit:#eb6b63;--crit-weak:#331715;color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0b141b;--surface:#111d26;--surface-2:#17242e;--border:#243541;--fg:#e7eff5;--muted:#92a6b4;
+  --accent:#5aa2f0;--accent-weak:#12304d;--good:#4fcc82;--good-weak:#133325;--warn:#e3a94f;--warn-weak:#2e2410;--crit:#eb6b63;--crit-weak:#331715;color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.55;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--surface);z-index:10}
+.wrap{max-width:900px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{text-wrap:balance;margin:0}.mono{font-family:var(--mono)}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding-block:18px;margin-bottom:18px;position:sticky;top:env(safe-area-inset-top,0px);z-index:9}
+header h1{font-size:1.3rem;font-weight:700;letter-spacing:-.015em}
+header .sub{color:var(--muted);font-size:.82rem;margin-top:3px}
+.toggle{float:right;border:1px solid var(--border);background:var(--surface-2);color:var(--fg);border-radius:8px;padding:6px 10px;font:inherit;font-size:.76rem;cursor:pointer}
+.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:4px 0 2px}
+.stp{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;box-shadow:var(--shadow)}
+.stp .n{font-family:var(--mono);font-size:.7rem;color:var(--accent);font-weight:700}
+.stp .t{font-weight:600;font-size:.78rem;margin-top:2px}
+h2{font-size:1.06rem;margin:24px 0 10px;display:flex;align-items:baseline;gap:9px}
+h2 .no{font-family:var(--mono);font-size:.82rem;color:var(--accent);font-weight:600}
+h3{font-size:.82rem;margin:14px 0 4px;color:var(--muted);font-weight:600}
+p{margin:.6em 0}.lead{color:var(--muted);font-size:.88rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:15px;margin-top:10px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.81rem;min-width:520px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em}
+tr:last-child td{border-bottom:none}
+code,.ic{font-family:var(--mono);font-size:.8rem;background:var(--surface-2);padding:1px 5px;border-radius:5px;white-space:nowrap}
+pre{margin:8px 0 0;padding:13px;overflow:auto;background:#06151c;color:#d7e7ef;border-radius:9px;font-family:var(--mono);font-size:.76rem;line-height:1.5}
+pre .ok{color:#6ee29a}pre .c{color:#7fa8c9}
+.okrow{color:var(--good)}.failrow{color:var(--crit)}
+ul.b{margin:.5em 0;padding-left:1.15em}ul.b li{margin:.3em 0;font-size:.86rem}
+.chk{list-style:none;margin:.4em 0;padding:0}.chk li{font-size:.86rem;padding:3px 0 3px 24px;position:relative}
+.chk li::before{content:"☐";position:absolute;left:0;color:var(--accent);font-weight:700}
+.note{font-size:.82rem;color:var(--muted);border-left:3px solid var(--warn);padding:6px 0 6px 12px;margin:12px 0;background:linear-gradient(90deg,var(--surface-2),transparent)}
+.scenario{font-weight:700;font-size:.86rem;color:var(--accent);margin-top:14px}
+footer{color:var(--muted);font-size:.76rem;border-top:1px solid var(--border);margin-top:30px;padding:16px 0 44px}
+@media (max-width:720px){.steps{grid-template-columns:repeat(2,1fr)}.toggle{float:none;display:block;margin-bottom:8px}}
+</style>
+
+<header><div class="wrap">
+  <button class="toggle" id="theme" type="button">◐ Giao diện</button>
+  <h1>Runbook — Kết nối Broker khác</h1>
+  <div class="sub">Chuyển gateway sang broker production/bên thứ ba · công cụ chẩn đoán <span class="mono">broker_check.py</span></div>
+</div></header>
+
+<main class="wrap">
+  <div class="steps">
+    <div class="stp"><div class="n">01</div><div class="t">Xin thông tin</div></div>
+    <div class="stp"><div class="n">02</div><div class="t">Chuẩn bị + CA</div></div>
+    <div class="stp"><div class="n">03</div><div class="t">Chẩn đoán</div></div>
+    <div class="stp"><div class="n">04</div><div class="t">device.status</div></div>
+    <div class="stp"><div class="n">05</div><div class="t">Gửi thật</div></div>
+  </div>
+  <p class="lead">Code sẵn sàng: <span class="ic">publisher.py</span> hiểu <span class="ic">mqtt/mqtts/ws/wss</span>,
+    có user/pass, CA, mTLS, MQTT 5 &amp; 3.1.1. Topic: <span class="ic">pvl/v2/gw/&lt;gw_id&gt;/up/&lt;type&gt;</span> (rule #10: không patient_id).</p>
+
+  <h2><span class="no">01</span> Thông tin cần xin từ bên vận hành</h2>
+  <div class="card scroll"><table>
+    <tr><th>Mục</th><th>Ví dụ</th><th>Cờ</th></tr>
+    <tr><td>URL + cổng + scheme</td><td><code>wss://mqtt-hn-n1.pavalife.com:443/mqtt</code></td><td>--broker</td></tr>
+    <tr><td>Phiên bản MQTT</td><td>5.0</td><td>--mqtt-version 5</td></tr>
+    <tr><td>Xác thực</td><td>user/pass · mTLS · token</td><td>--username/--password</td></tr>
+    <tr><td>CA cert (CA nội bộ)</td><td><code>pavalife-ca.pem</code></td><td>--ca-cert</td></tr>
+    <tr><td>client_id + ACL topic</td><td><code>…/up/#</code></td><td>--client-id / quyền broker</td></tr>
+    <tr><td>Giới hạn + mạng</td><td>size/QoS/rate · mở 443/8883</td><td>hạ tầng</td></tr>
+  </table></div>
+
+  <h2><span class="no">02</span> Chuẩn bị máy gateway</h2>
+  <div class="card">
+<pre><span class="c"># cài phụ thuộc + đặt CA (nếu CA nội bộ) cạnh thư mục</span>
+pip install -r requirements.txt
+<span class="c"># bí mật qua ENV, KHÔNG hardcode/commit</span>
+export PVL_MQTT_PASSWORD="•••••"</pre>
+  </div>
+
+  <h2><span class="no">03</span> Chẩn đoán kết nối — <span class="mono" style="font-size:.9rem">broker_check.py</span></h2>
+  <div class="card">
+    <p class="lead">Kiểm 4 bước + tự gửi/nhận lại <span class="ic">device.status</span> (round-trip). Chạy TRƯỚC khi gửi dữ liệu thật.</p>
+<pre>python tools/broker_check.py \
+  --broker wss://mqtt-hn-n1.pavalife.com:443/mqtt --mqtt-version 5 \
+  --username GW-ROBOT-DEV-001 --password "$PVL_MQTT_PASSWORD" --ca-cert pavalife-ca.pem
+
+<span class="ok">[1] TCP reachability            [OK] mở được TCP tới …:443</span>
+<span class="ok">[2] TLS handshake + chứng chỉ   [OK] TLSv1.3 · CN=… · hết hạn=…</span>
+<span class="ok">[3] MQTT CONNECT                 [OK] CONNECT thành công (MQTT 5.0)</span>
+<span class="ok">[4] round-trip device.status     [OK] tự nhận lại bản tin đã gửi</span>
+ KẾT QUẢ: TẤT CẢ PASS — broker sẵn sàng dùng.</pre>
+    <p class="lead">Mỗi bước FAIL in kèm gợi ý <span class="ic">[→]</span>; thoát code 0 nếu PASS (dùng trong CI).</p>
+  </div>
+
+  <h2><span class="no">04</span> Các kịch bản kết nối (copy-paste)</h2>
+  <div class="card">
+    <div class="scenario">4c · WSS + user/pass — production PavaLife</div>
+<pre>python pvl_send.py all \
+  --broker "wss://mqtt-hn-n1.pavalife.com:443/mqtt" --mqtt-version 5 \
+  --username GW-ROBOT-DEV-001 --password "$PVL_MQTT_PASSWORD" \
+  --ca-cert pavalife-ca.pem --publish</pre>
+    <div class="scenario">4b · TLS (TCP) + user/pass</div>
+<pre>python pvl_send.py all --broker mqtts://broker.lan:8883 --mqtt-version 5 \
+  --username gw --password "$PVL_MQTT_PASSWORD" --ca-cert ca.pem --publish</pre>
+    <div class="scenario">4d · mTLS (chứng chỉ client)</div>
+<pre><span class="c"># publisher.py nhánh TLS: thêm certfile/keyfile</span>
+self._client.tls_set(ca_certs="pavalife-ca.pem",
+                     certfile="gw-client.crt", keyfile="gw-client.key")</pre>
+    <div class="scenario">4e · Token/JWT (qua trường password)</div>
+<pre>python pvl_send.py status --broker "wss://…:443/mqtt" --mqtt-version 5 \
+  --username GW-ROBOT-DEV-001 --password "$PVL_JWT" --ca-cert ca.pem --publish</pre>
+    <p class="note"><span class="ic">--insecure</span> (bỏ xác minh TLS) chỉ để thử tạm — <b>không</b> dùng production.</p>
+  </div>
+
+  <h2><span class="no">05</span> Tham số production + ACL</h2>
+  <div class="card scroll"><table>
+    <tr><th>Tham số</th><th>Khuyến nghị</th><th>Lý do</th></tr>
+    <tr><td>QoS</td><td><b>1</b></td><td>không mất bản tin; message_id khử trùng (rule #2)</td></tr>
+    <tr><td>keepalive</td><td>30–60 s</td><td>phát hiện rớt kết nối</td></tr>
+    <tr><td>Session expiry (MQTT5)</td><td>&gt; 0</td><td>giữ hàng đợi khi rớt mạng ngắn</td></tr>
+    <tr><td>Last Will (LWT)</td><td>device.status=offline</td><td>cloud biết gateway mất kết nối</td></tr>
+    <tr><td>retain</td><td>không cho observation</td><td>observation là sự kiện, không phải trạng thái</td></tr>
+    <tr><td>sequence_no</td><td>tăng dần kể cả sau reconnect</td><td>rule #3</td></tr>
+    <tr><td>payload lớn</td><td>không qua broker</td><td>ảnh/audio đi data plane</td></tr>
+  </table></div>
+  <div class="card"><h3>ACL tối thiểu quyền</h3>
+    <ul class="b"><li><b>PUBLISH</b> <span class="ic">pvl/v2/gw/GW-ROBOT-DEV-001/up/#</span></li>
+      <li><b>SUBSCRIBE</b> (nếu có kênh lệnh) <span class="ic">pvl/v2/gw/GW-ROBOT-DEV-001/down/#</span></li></ul></div>
+
+  <h2><span class="no">06</span> Khắc phục lỗi</h2>
+  <div class="card scroll"><table>
+    <tr><th>Triệu chứng</th><th>Bước</th><th>Nguyên nhân → cách xử lý</th></tr>
+    <tr><td class="failrow">getaddrinfo / không resolve</td><td>[1]</td><td>sai hostname/DNS → kiểm URL, DNS</td></tr>
+    <tr><td class="failrow">TCP timeout/refused</td><td>[1]</td><td>firewall/VPN/sai cổng → mở 443/8883, xin allow-list</td></tr>
+    <tr><td class="failrow">CERTIFICATE_VERIFY_FAILED</td><td>[2]</td><td>thiếu CA nội bộ → thêm <code>--ca-cert</code></td></tr>
+    <tr><td class="failrow">hostname mismatch</td><td>[2]</td><td>SAN cert ≠ host → dùng đúng hostname / xin cert đúng SAN</td></tr>
+    <tr><td class="failrow">CONNECT reason 4/5</td><td>[3]</td><td>sai user/pass/token → kiểm thông tin cấp</td></tr>
+    <tr><td class="failrow">CONNECT reason 133/135</td><td>[3]</td><td>client_id trùng/bị cấm → dùng id duy nhất</td></tr>
+    <tr><td class="failrow">treo ở wss</td><td>[3]</td><td>proxy chặn 443 / sai path → cấu hình proxy, path <code>/mqtt</code></td></tr>
+    <tr><td class="failrow">publish không PUBACK</td><td>[4]</td><td>ACL chặn publish → xin mở <code>…/up/#</code></td></tr>
+    <tr><td class="failrow">publish OK, không nhận lại</td><td>[4]</td><td>ACL chặn subscribe → xin mở subscribe topic</td></tr>
+    <tr><td class="failrow">bản tin bị loại</td><td>sau [4]</td><td>sai schema → chạy <code>tests/test_contract.py</code> trước</td></tr>
+  </table></div>
+
+  <h2><span class="no">07</span> Go-live + bảo mật</h2>
+  <div class="card">
+    <h3>Quy trình go-live</h3>
+    <ul class="b">
+      <li>Điền thông tin §01, đặt CA/secret vào ENV.</li>
+      <li><span class="ic">broker_check.py</span> → TẤT CẢ PASS.</li>
+      <li><span class="ic">pvl_send.py status --publish</span> → bên vận hành xác nhận nhận được <span class="ic">…/up/device.status</span>.</li>
+      <li>Gửi thử vitals; bật store-and-forward + LWT; chạy nền (systemd); giám sát device.status (60s).</li>
+    </ul>
+    <h3>Checklist bảo mật</h3>
+    <ul class="chk">
+      <li>TLS bật, xác minh CA — không <span class="ic">--insecure</span> ở production.</li>
+      <li>Bí mật trong ENV/secret manager, không hardcode/commit.</li>
+      <li>client_id duy nhất; ACL tối thiểu quyền.</li>
+      <li>patient_id chỉ trong payload, không topic/log (rule #10).</li>
+      <li>Rate limit + store-and-forward; LWT device.status=offline.</li>
+      <li>Xoay mật khẩu/cert định kỳ; thu hồi khi lộ.</li>
+    </ul>
+  </div>
+
+  <footer>Chi tiết đầy đủ + mẫu cấu hình: <span class="mono">docs/KET_NOI_BROKER.md</span> ·
+    công cụ: <span class="mono">tools/broker_check.py</span> · cơ chế audio/ảnh: <span class="mono">CO_CHE_TRUYEN.md</span>.</footer>
+</main>
+<script>
+"use strict";
+(function(){var r=document.documentElement,b=document.getElementById("theme");
+ try{var s=localStorage.getItem("pvl-kb");if(s)r.setAttribute("data-theme",s);}catch(e){}
+ b.addEventListener("click",function(){var c=r.getAttribute("data-theme"),pd=matchMedia("(prefers-color-scheme:dark)").matches;
+   var n=(c==="dark"||(!c&&pd))?"light":"dark";r.setAttribute("data-theme",n);
+   try{localStorage.setItem("pvl-kb",n);}catch(e){}});})();
+</script>

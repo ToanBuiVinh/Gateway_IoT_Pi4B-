@@ -1,0 +1,66 @@
+{
+  "schema_version": "2.1",
+  "message_id": "7a1c2d3e-0001-4a10-9b20-000000000108",
+  "message_type": "observation.audio",
+  "event_time": "2026-10-21T21:56:23.703+07:00",
+  "sequence_no": 108,
+  "facility": {
+    "facility_id": "PVL-ROBOT-DEV"
+  },
+  "gateway": {
+    "gateway_id": "GW-ROBOT-DEV-001",
+    "software_version": "0.2.0",
+    "received_at": "2026-10-21T21:56:23.703+07:00",
+    "published_at": "2026-10-21T21:56:23.703+07:00",
+    "clock_source": "ntp"
+  },
+  "source": {
+    "source_id": "ROBOT-DEV-001",
+    "source_type": "auscultation_device",
+    "connection": "wifi"
+  },
+  "patient_context": {
+    "patient_id": "BN-TEST-000001",
+    "patient_id_issuer": "PVL-ROBOT-DEV",
+    "encounter_id": "ENC-TEST-000001",
+    "encounter_id_issuer": "PVL-ROBOT-DEV",
+    "binding": {
+      "binding_id": "BIND-TEST-001",
+      "method": "manual",
+      "status": "pending_verification",
+      "bound_at": "2026-10-21T21:56:23.703+07:00"
+    }
+  },
+  "payload": {
+    "recording": {
+      "recording_id": "STE-001-REC-000108",
+      "modality": "auscultation",
+      "format": "wav",
+      "codec": "pcm_s16le",
+      "sample_rate_hz": 8000,
+      "bit_depth": 16,
+      "channels": 1,
+      "duration_sec": 15.0,
+      "lossless": true
+    },
+    "acquisition": {
+      "body_site": "mitral (heart apex)",
+      "filter_mode": "raw",
+      "gain_db": 0,
+      "note": "khong nen/loc - bao toan am tim & am phoi"
+    },
+    "storage": {
+      "type": "s3",
+      "url": "s3://pvl-audio/PVL-ROBOT-DEV/STE-001/STE-001-REC-000108.wav",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size_bytes": 240000
+    },
+    "live": {
+      "enabled": true,
+      "protocol": "webrtc",
+      "endpoint": "wss://media.pavalife.com/live/ste-001",
+      "codec": "opus",
+      "latency_target_ms": 200
+    }
+  }
+}
