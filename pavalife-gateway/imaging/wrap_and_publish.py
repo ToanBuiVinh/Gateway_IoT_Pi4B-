@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import math
 import os
 import random
@@ -61,9 +62,28 @@ def ultrasound_frame(w=176, h=132, seed=7) -> bytes:
     return bytes(buf)
 
 
+# ---- 1b) ĐẶC TẢ RAW PIXEL ARRAY (khi thiết bị không xuất DICOM) ----
+# Thống nhất: pixel_format gray8 (1 byte) | gray16 little-endian (2 byte);
+# bố cục row-major, gốc trên-trái; các khung xếp LIÊN TIẾP theo frame_index tăng dần;
+# kiểm tra toàn vẹn: len(data) == width*height*bytes*frame_count (+ sha256).
+def read_raw_frames(path: str, width: int, height: int, pixel_format: str, frame_count: int):
+    bpp = 2 if pixel_format == "gray16" else 1
+    with open(path, "rb") as f:
+        data = f.read()
+    frame_size = width * height * bpp
+    expect = frame_size * frame_count
+    if len(data) != expect:
+        raise ValueError(f"[raw] so byte {len(data)} != width*height*bytes*frames {expect} "
+                         f"(w={width},h={height},bpp={bpp},frames={frame_count})")
+    frames = [data[i * frame_size:(i + 1) * frame_size] for i in range(frame_count)]
+    print(f"  raw OK: {frame_count} khung {width}x{height} {pixel_format} "
+          f"| {len(data)} bytes | sha256={hashlib.sha256(data).hexdigest()[:16]}…")
+    return frames, (16 if bpp == 2 else 8)
+
+
 # ---- 2) Đóng gói DICOM ----
 def make_us_dataset(frames: list[bytes], rows: int, cols: int, patient_id: str,
-                    study_uid: str, series_uid: str):
+                    study_uid: str, series_uid: str, bits: int = 8):
     import pydicom
     from pydicom.dataset import FileDataset, FileMetaDataset
     from pydicom.uid import ExplicitVRLittleEndian, generate_uid
@@ -97,9 +117,9 @@ def make_us_dataset(frames: list[bytes], rows: int, cols: int, patient_id: str,
     ds.PhotometricInterpretation = "MONOCHROME2"
     ds.Rows = rows
     ds.Columns = cols
-    ds.BitsAllocated = 8
-    ds.BitsStored = 8
-    ds.HighBit = 7
+    ds.BitsAllocated = bits
+    ds.BitsStored = bits
+    ds.HighBit = bits - 1
     ds.PixelRepresentation = 0
     if len(frames) > 1:
         ds.NumberOfFrames = len(frames)
@@ -128,6 +148,10 @@ def stow(ds, dicomweb_url: str, orthanc_url: str, dcm_path: str) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--frames", type=int, default=1, help="so khung (>=2 = multi-frame/cine)")
+    ap.add_argument("--raw", help="file raw pixel array tu thiet bi (thay vi sinh procedural)")
+    ap.add_argument("--width", type=int, default=176, help="dung voi --raw")
+    ap.add_argument("--height", type=int, default=132, help="dung voi --raw")
+    ap.add_argument("--pixel-format", choices=["gray8", "gray16"], default="gray8", help="dung voi --raw")
     ap.add_argument("--out", default=os.path.join(ROOT, "imaging", "out"))
     ap.add_argument("--orthanc", default="http://localhost:8042")
     ap.add_argument("--dicomweb", default="http://localhost:8042/dicom-web")
@@ -140,12 +164,17 @@ def main() -> int:
         args.broker = "mqtt://localhost:1883"
 
     from pydicom.uid import generate_uid
-    W, H = 176, 132
-    frames = [ultrasound_frame(W, H, seed=7 + i) for i in range(max(1, args.frames))]
+    nframes = max(1, args.frames)
+    if args.raw:                               # thiet bi chi xuat RAW pixel array
+        W, H = args.width, args.height
+        frames, bits = read_raw_frames(args.raw, W, H, args.pixel_format, nframes)
+    else:                                      # sinh procedural (gray8) de demo
+        W, H, bits = 176, 132, 8
+        frames = [ultrasound_frame(W, H, seed=7 + i) for i in range(nframes)]
     study_uid, series_uid = generate_uid(), generate_uid()
     patient_id = "BN-TEST-000001"
 
-    ds = make_us_dataset(frames, H, W, patient_id, study_uid, series_uid)
+    ds = make_us_dataset(frames, H, W, patient_id, study_uid, series_uid, bits=bits)
     os.makedirs(args.out, exist_ok=True)
     dcm_path = os.path.join(args.out, "us_study.dcm")
     ds.save_as(dcm_path)

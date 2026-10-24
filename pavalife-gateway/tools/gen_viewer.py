@@ -82,6 +82,29 @@ def build_data():
         "wado": storage.get("wado_rs_study"), "msg": um,
     })
 
+    # Ong nghe (observation.audio) — file WAV/FLAC lossless + live
+    with open(os.path.join(SAMPLES, "stethoscope.json"), encoding="utf-8") as f:
+        am = json.load(f)
+    rec = am["payload"]["recording"]
+    acq = am["payload"].get("acquisition", {})
+    storage = am["payload"]["storage"]
+    live = am["payload"].get("live", {})
+    devices.append({
+        "device_key": "stethoscope", "device_id": "STE-001", "message_type": "observation.audio",
+        "source_type": am["source"]["source_type"], "topic": reg.topic_for("observation.audio"),
+        "sequence_no": am["sequence_no"], "event_time": am["event_time"],
+        "kind": "audio", "valid": not validator.validate(am),
+        "summary": [
+            {"label": "Định dạng", "value": rec["format"].upper() + " / " + rec["codec"]},
+            {"label": "Lossless", "value": "có" if rec["lossless"] else "không"},
+            {"label": "Chất lượng", "value": f"{rec['sample_rate_hz']} Hz · {rec['bit_depth']}-bit · {rec['channels']}ch"},
+            {"label": "Vị trí nghe", "value": acq.get("body_site", "—")},
+            {"label": "Lọc", "value": acq.get("filter_mode", "—")},
+            {"label": "Live", "value": (f"{live.get('protocol','')} ~{live.get('latency_target_ms','?')}ms") if live.get("enabled") else "—"},
+        ],
+        "storage_url": storage.get("url"), "live_endpoint": live.get("endpoint"), "msg": am,
+    })
+
     with open(os.path.join(SAMPLES, "device_status.json"), encoding="utf-8") as f:
         ds = json.load(f)
     status = {"device_id": reg.SOURCE_ID, "message_type": "device.status",
@@ -248,7 +271,7 @@ $("#sv").textContent=DATA.schema_version;$("#fac").textContent=DATA.facility;$("
 
 // Tiles
 const nAll=DATA.devices.length, nOK=DATA.devices.filter(d=>d.valid).length+ (DATA.status.valid?1:0);
-[[String(nAll),"thiết bị"],["vitals · lab · imaging","message_type"],[(nOK)+"/"+(nAll+1),"bản tin hợp lệ (schema)"],[DATA.absent.length,"ví dụ thiếu dữ liệu"]]
+[[String(nAll),"thiết bị"],["vitals·lab·imaging·audio","message_type"],[(nOK)+"/"+(nAll+1),"bản tin hợp lệ (schema)"],[DATA.absent.length,"ví dụ thiếu dữ liệu"]]
 .forEach((t,i)=>{const d=el("div","tile"+(i===2?" ok":""));d.append(el("div","n",String(t[0])),el("div","l",t[1]));$("#tiles").append(d);});
 
 // ==== ĐẨY DỮ LIỆU LÊN (PUSH) — mỗi 500ms một dữ liệu ====
@@ -289,6 +312,10 @@ function buildViz(d,big){
   box.append(Object.assign(el("div","dic-ico"),{textContent:"US"}));
   box.append(Object.assign(el("div","dic-t"),{textContent:"Ảnh DICOM · tải qua WADO-RS (pixel KHÔNG nhúng trong MQTT)"}));
   wrap.append(box,Object.assign(el("div","caption"),{textContent:"imaging.study · chỉ tham chiếu study + storage"}));return wrap;}
+ if(d.kind==="audio"){const wrap=el("div","viz"),box=el("div","dicombox");
+  box.append(Object.assign(el("div","dic-ico"),{textContent:"WAV"}));
+  box.append(Object.assign(el("div","dic-t"),{textContent:"Âm thanh lossless · tải file nghe lại · live qua WebRTC (audio KHÔNG trong MQTT)"}));
+  wrap.append(box,Object.assign(el("div","caption"),{textContent:"observation.audio · tham chiếu file WAV/FLAC + live endpoint"}));return wrap;}
  return buildBars(d.summary);}
 
 function render(){const g=$("#grid");g.innerHTML="";pushStreams=[];liveCharts=[];
@@ -298,6 +325,7 @@ function render(){const g=$("#grid");g.innerHTML="";pushStreams=[];liveCharts=[]
   c.append(h,el("span","mtype",d.message_type),buildViz(d,false));
   if(d.kind==="lab")c.append(Object.assign(el("div","labmeta"),{textContent:"Bệnh phẩm "+d.specimen.specimen_type+" · report "+d.report.status}));
   if(d.kind==="imaging"){c.append(buildBars(d.summary));if(d.wado)c.append(Object.assign(el("div","wado"),{textContent:"WADO-RS  "+d.wado}));}
+  if(d.kind==="audio"){c.append(buildBars(d.summary));if(d.storage_url)c.append(Object.assign(el("div","wado"),{textContent:"FILE  "+d.storage_url}));if(d.live_endpoint)c.append(Object.assign(el("div","wado"),{textContent:"LIVE  "+d.live_endpoint}));}
   c.append(Object.assign(el("div","topic"),{textContent:d.topic}));
   const f=el("div","card-f");const b1=el("button","btn","Chỉ số");b1.onclick=e=>{e.stopPropagation();openModal(d,"detail");};
   const b2=el("button","btn","Bản tin JSON");b2.onclick=e=>{e.stopPropagation();openModal(d,"msg");};f.append(b1,b2);c.append(f);

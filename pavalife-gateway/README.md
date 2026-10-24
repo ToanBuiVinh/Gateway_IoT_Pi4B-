@@ -18,12 +18,18 @@ tin mẫu, validate, và một dashboard xem trực quan.
 | 5 | Xét nghiệm (axit uric) | LAB-001 | observation.lab | lab_analyzer | uric_acid **14933-6** (umol/L) + specimen + report |
 | 6 | Đường huyết | GLU-001 | observation.lab | lab_analyzer | blood_glucose **14743-9** (mmol/L) + specimen + report |
 | 7 | Siêu âm *(mở rộng)* | US-001 | imaging.study | imaging_device | DICOM (US) — chỉ tham chiếu, pixel qua DICOMweb |
+| 8 | Ống nghe điện tử *(mở rộng)* | STE-001 | observation.audio | auscultation_device | WAV/FLAC lossless (lưu) + live WebRTC |
 
 Thêm **device.status** (Phụ lục A): connectivity / battery / sensor_health.
 
-> **Ảnh siêu âm (imaging.study):** thiết kế gửi ảnh không nhồi pixel vào MQTT — tách
-> control plane (MQTT metadata) và data plane (DICOM qua DICOMweb/WADO-RS). Chi tiết
-> kiến trúc + lập trình tầng dưới (thiết bị) và tầng Application: [`docs/IMAGING_DESIGN.md`](docs/IMAGING_DESIGN.md).
+> **Ảnh siêu âm (imaging.study):** không nhồi pixel vào MQTT — tách control plane (metadata)
+> và data plane (DICOM qua DICOMweb/WADO-RS). Nếu thiết bị chỉ xuất **raw pixel array**:
+> thống nhất định dạng/kích thước/thứ tự frame/toàn vẹn rồi gateway ghép → DICOM.
+> Chi tiết: [`docs/IMAGING_DESIGN.md`](docs/IMAGING_DESIGN.md).
+>
+> **Ống nghe điện tử (observation.audio):** 2 trường hợp — **live** (streaming độ trễ thấp
+> WebRTC) và **lưu hồ sơ** (file **WAV/FLAC lossless, raw/không lọc** bảo toàn âm tim/phổi).
+> Audio đi ngoài MQTT; bản tin chỉ tham chiếu. Chi tiết: [`docs/AUDIO_DESIGN.md`](docs/AUDIO_DESIGN.md).
 
 ## Cấu trúc bản tin (v2.1)
 

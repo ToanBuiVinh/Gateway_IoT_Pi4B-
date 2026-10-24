@@ -205,6 +205,53 @@ def build_imaging_study(device_key: str, event_time: str, sequence_no: Optional[
     return msg
 
 
+def build_audio_recording(device_key: str, event_time: str, sequence_no: Optional[int] = None,
+                          body_site: str = "mitral (heart apex)", duration_sec: float = 15.0,
+                          sample_rate_hz: int = 8000, bit_depth: int = 16, channels: int = 1,
+                          fmt: str = "wav", codec: str = "pcm_s16le",
+                          with_live: bool = True) -> Dict[str, Any]:
+    """Nghe tim/phoi (observation.audio).
+
+    - File LƯU: WAV/FLAC **lossless**, **raw (không lọc)** -> bảo toàn âm tim/phổi;
+      đặt ở object storage, MQTT chỉ tham chiếu (giống ảnh DICOM).
+    - live: nghe trực tiếp **độ trễ thấp** (WebRTC/RTP) — endpoint, không đẩy audio qua MQTT.
+    """
+    dev = reg.DEVICES[device_key]
+    seq = sequence_no if sequence_no is not None else reg.SEQ[device_key]
+    did = dev["device_id"]
+    rec_id = f"{did}-REC-{seq:06d}"
+    size_bytes = int(sample_rate_hz * (bit_depth // 8) * channels * duration_sec)
+
+    msg = _base("observation.audio", event_time, seq, dev["source_type"], with_patient=True)
+    payload: Dict[str, Any] = {
+        "recording": {
+            "recording_id": rec_id, "modality": "auscultation",
+            "format": fmt, "codec": codec, "sample_rate_hz": sample_rate_hz,
+            "bit_depth": bit_depth, "channels": channels,
+            "duration_sec": duration_sec, "lossless": True,
+        },
+        "acquisition": {
+            "body_site": body_site, "filter_mode": "raw", "gain_db": 0,
+            "note": "khong nen/loc - bao toan am tim & am phoi",
+        },
+        "storage": {
+            "type": "s3",
+            "url": f"{reg.AUDIO_STORAGE_BASE}/{did}/{rec_id}.{fmt}",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "size_bytes": size_bytes,
+        },
+    }
+    if with_live:
+        payload["live"] = {
+            "enabled": True, "protocol": "webrtc",
+            "endpoint": f"{reg.LIVE_MEDIA_BASE}/{did.lower()}",
+            "codec": "opus",          # live: do tre thap; ban LƯU luon la lossless (tren)
+            "latency_target_ms": 200,
+        }
+    msg["payload"] = payload
+    return msg
+
+
 def build_device_status(event_time: str, battery_percent: int = 85,
                         sequence_no: Optional[int] = None) -> Dict[str, Any]:
     seq = sequence_no if sequence_no is not None else reg.SEQ["device.status"]

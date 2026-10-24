@@ -181,6 +181,27 @@ tham chiếu DICOMweb.
 
 ---
 
+## 6b. Nếu thiết bị chỉ xuất RAW pixel array
+
+Khi đầu dò/SoC chỉ cho ra mảng điểm ảnh thô (không DICOM), gateway vẫn ghép được ảnh
+→ đóng gói DICOM, nhưng **phải thống nhất đặc tả** để không hỏng ảnh:
+
+| Hạng mục | Quy ước |
+|---|---|
+| **pixel_format** | `gray8` (1 byte) hoặc `gray16` little-endian (2 byte) |
+| **Bố cục** | row-major, gốc **trên-trái**; `width × height` cố định cho cả loạt |
+| **Thứ tự frame** | các khung xếp **liên tiếp** theo `frame_index` tăng dần |
+| **Toàn vẹn** | `len(data) == width × height × bytes × frame_count`; kèm **sha256** |
+
+Hiện thực trong [`imaging/wrap_and_publish.py`](../imaging/wrap_and_publish.py)
+(`read_raw_frames`): đọc file raw, **kiểm tra đúng số byte** rồi tách khung theo thứ tự,
+đóng gói DICOM 8/16-bit tương ứng.
+```bash
+# thiết bị dump 1 khung gray8 176x132 ra file -> ghép & đóng DICOM:
+python imaging/wrap_and_publish.py --raw frame.raw --width 176 --height 132 \
+       --pixel-format gray8 --frames 1 --stow
+```
+
 ## 7. Cần PavaLife xác nhận (trước khi dùng thật)
 - **OID gốc** cấp cho PavaLife để sinh UID hợp lệ (đang dùng OID ví dụ).
 - Endpoint **PACS/DICOMweb** thật + xác thực (token/mTLS).

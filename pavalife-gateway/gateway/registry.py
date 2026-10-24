@@ -79,7 +79,15 @@ DEVICES = {
         "device_id": "US-001", "message_type": "imaging.study", "source_type": "imaging_device",
         "modality": "US",
     },
+    # Ong nghe dien tu: observation.audio — file WAV/FLAC lossless + live streaming
+    "stethoscope": {
+        "device_id": "STE-001", "message_type": "observation.audio", "source_type": "auscultation_device",
+    },
 }
+
+# Noi luu file am thanh goc (lossless) va endpoint nghe truc tiep. [CAN PAVALIFE XAC NHAN]
+AUDIO_STORAGE_BASE = "s3://pvl-audio/PVL-ROBOT-DEV"
+LIVE_MEDIA_BASE = "wss://media.pavalife.com/live"
 
 # DICOMweb cua PACS (noi luu & lay anh). [CAN PAVALIFE XAC NHAN]
 DICOMWEB_BASE = "https://pacs.pavalife.com/dicom-web"
@@ -88,7 +96,8 @@ UID_ROOT = "1.2.826.0.1.3680043.8.498"   # OID goc (vi du) — PavaLife cap OID 
 # Thu tu + sequence_no demo (device.status=100, roi 101..106)
 ORDER = ["blood_pressure", "spo2", "thermometer", "scale", "lab_analyzer", "glucose"]
 SEQ = {"blood_pressure": 101, "spo2": 102, "thermometer": 103, "scale": 104,
-       "lab_analyzer": 105, "glucose": 106, "ultrasound": 107, "device.status": 100}
+       "lab_analyzer": 105, "glucose": 106, "ultrasound": 107, "stethoscope": 108,
+       "device.status": 100}
 
 
 def topic_for(message_type: str) -> str:

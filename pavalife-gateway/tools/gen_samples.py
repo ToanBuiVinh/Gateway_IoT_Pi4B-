@@ -27,6 +27,7 @@ MID = {
     "lab": "b18c4116-4b7f-4666-9723-9edf1d7bf190",
     "glu": "3c551120-7a4d-43f8-8b23-db77953182ce",
     "ultrasound": "7a1c2d3e-0001-4a10-9b20-000000000107",
+    "stethoscope": "7a1c2d3e-0001-4a10-9b20-000000000108",
     "bp_absent": "7a1c2d3e-0002-4a10-9b20-000000000201",
     "temp_absent": "7a1c2d3e-0002-4a10-9b20-000000000203",
 }
@@ -48,6 +49,7 @@ def build_all():
     out["lab"] = C.build_lab("lab_analyzer", {"uric_acid": 360}, _t(699))
     out["glu"] = C.build_lab("glucose", {"blood_glucose": 5.6}, _t(700))
     out["ultrasound"] = C.build_imaging_study("ultrasound", _t(702))
+    out["stethoscope"] = C.build_audio_recording("stethoscope", _t(703))
 
     # Ca THIEU DU LIEU (rule #7): khong value:null -> data_absent_reason
     et = _t(695)

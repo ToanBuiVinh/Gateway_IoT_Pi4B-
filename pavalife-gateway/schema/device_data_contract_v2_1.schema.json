@@ -11,7 +11,7 @@
     "message_id": { "type": "string", "format": "uuid" },
     "message_type": {
       "enum": ["observation.vitals", "observation.lab", "observation.waveform",
-               "imaging.study", "event.alarm", "device.status"]
+               "observation.audio", "imaging.study", "event.alarm", "device.status"]
     },
     "event_time": { "type": "string", "format": "date-time" },
     "sequence_no": { "type": "integer", "minimum": 0 },
@@ -30,6 +30,8 @@
       "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/labPayload" } } } },
     { "if": { "properties": { "message_type": { "const": "imaging.study" } }, "required": ["message_type"] },
       "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/imagingPayload" } } } },
+    { "if": { "properties": { "message_type": { "const": "observation.audio" } }, "required": ["message_type"] },
+      "then": { "required": ["patient_context"], "properties": { "payload": { "$ref": "#/$defs/audioPayload" } } } },
     { "if": { "properties": { "message_type": { "const": "device.status" } }, "required": ["message_type"] },
       "then": { "properties": { "payload": { "$ref": "#/$defs/statusPayload" } } } }
   ],
@@ -60,7 +62,7 @@
       "required": ["source_id", "source_type"],
       "properties": {
         "source_id": { "type": "string" },
-        "source_type": { "enum": ["robot_doctor", "lab_analyzer", "lis", "patient_monitor", "imaging_device", "other"] },
+        "source_type": { "enum": ["robot_doctor", "lab_analyzer", "lis", "patient_monitor", "imaging_device", "auscultation_device", "other"] },
         "connection": { "enum": ["ble", "ethernet", "wifi", "serial", "https", "vendor_api", "other"] }
       }
     },
@@ -226,6 +228,58 @@
             "thumbnail_url": { "type": "string" },
             "size_bytes": { "type": "integer", "minimum": 0 },
             "transfer_syntax": { "type": "string" }
+          }
+        }
+      }
+    },
+    "audioPayload": {
+      "type": "object", "additionalProperties": false,
+      "description": "Nghe tim/phoi (auscultation). File LƯU la WAV/FLAC lossless (bao toan tin hieu); MQTT chi tham chieu. live = nghe truc tiep do tre thap.",
+      "required": ["recording"],
+      "properties": {
+        "recording": {
+          "type": "object", "additionalProperties": false,
+          "required": ["recording_id", "format", "codec", "sample_rate_hz", "channels", "lossless"],
+          "properties": {
+            "recording_id": { "type": "string" },
+            "modality": { "type": "string" },
+            "format": { "enum": ["wav", "flac"] },
+            "codec": { "enum": ["pcm_s16le", "pcm_s24le", "pcm_f32le", "flac"] },
+            "sample_rate_hz": { "type": "integer", "minimum": 1 },
+            "bit_depth": { "type": "integer" },
+            "channels": { "type": "integer", "minimum": 1 },
+            "duration_sec": { "type": "number", "minimum": 0 },
+            "lossless": { "type": "boolean" }
+          }
+        },
+        "acquisition": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "body_site": { "type": "string" },
+            "filter_mode": { "type": "string" },
+            "gain_db": { "type": "number" },
+            "note": { "type": "string" }
+          }
+        },
+        "storage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["type", "url"],
+          "properties": {
+            "type": { "enum": ["s3", "http", "dicom", "other"] },
+            "url": { "type": "string" },
+            "sha256": { "type": "string" },
+            "size_bytes": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "live": {
+          "type": "object", "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "protocol": { "enum": ["webrtc", "rtp", "websocket", "other"] },
+            "endpoint": { "type": "string" },
+            "codec": { "type": "string" },
+            "latency_target_ms": { "type": "integer", "minimum": 0 }
           }
         }
       }

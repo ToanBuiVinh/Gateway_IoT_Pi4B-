@@ -47,6 +47,8 @@ def build(kind: str, devices: list[str]) -> list[dict]:
         return [C.build_device_status(et)]
     if kind == "imaging":
         return [C.build_imaging_study("ultrasound", et)]
+    if kind == "audio":
+        return [C.build_audio_recording("stethoscope", et)]
     if kind == "all":
         msgs.append(C.build_device_status(et))
         for k in VITALS_KEYS:
@@ -54,6 +56,7 @@ def build(kind: str, devices: list[str]) -> list[dict]:
         for k in LAB_KEYS:
             msgs.append(C.build_lab(k, DEMO[k], et))
         msgs.append(C.build_imaging_study("ultrasound", et))
+        msgs.append(C.build_audio_recording("stethoscope", et))
         return msgs
     for key in devices:
         if key not in reg.DEVICES:
@@ -68,7 +71,7 @@ def build(kind: str, devices: list[str]) -> list[dict]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="PavaLife v2.1 message sender")
-    ap.add_argument("kind", choices=["vitals", "lab", "imaging", "status", "all"])
+    ap.add_argument("kind", choices=["vitals", "lab", "imaging", "audio", "status", "all"])
     ap.add_argument("--devices", default="", help="danh sach key, vd: blood_pressure,spo2")
     ap.add_argument("--publish", action="store_true", help="gui that len broker")
     ap.add_argument("--broker", default=reg.BROKER_URL, help="URL broker (mqtt/mqtts/ws/wss)")

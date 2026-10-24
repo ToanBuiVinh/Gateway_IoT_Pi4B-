@@ -57,6 +57,13 @@ def main() -> int:
             st = msg["payload"]["storage"]
             assert "wado_rs_study" in st or "stow_rs" in st, f"{name}: thieu tham chieu DICOMweb"
             assert "data" not in json.dumps(msg), f"{name}: khong duoc nhung pixel (data) trong MQTT"
+        # observation.audio: file LUU lossless (bao toan am), chi tham chieu (khong nhung audio)
+        if mtype == "observation.audio":
+            rec = msg["payload"]["recording"]
+            assert rec["lossless"] is True, f"{name}: ban ghi luu phai lossless"
+            assert rec["format"] in ("wav", "flac"), f"{name}: dinh dang luu phai wav/flac"
+            assert "storage" in msg["payload"] and msg["payload"]["storage"].get("url"), \
+                f"{name}: thieu tham chieu file am thanh"
         # Rule #8: observation.lab phai co specimen + report + source_type lab_analyzer/lis
         if mtype == "observation.lab":
             p = msg["payload"]
