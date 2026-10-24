@@ -98,6 +98,11 @@ python pvl_send.py all --local --publish                   # gửi tất cả l�
 > [`docs/BAO_CAO_v2.1.md`](docs/BAO_CAO_v2.1.md). Kết nối **broker bên ngoài**:
 > [`docs/EXTERNAL_BROKER.md`](docs/EXTERNAL_BROKER.md).
 
+### ⚡ Một cú click: publish + xem dữ liệu trên web (Windows)
+Double-click **`publish_and_view.bat`** — tự bật broker (mini_broker), bật web viewer,
+mở trình duyệt `http://localhost:8080`, rồi publish toàn bộ bản tin. Nhấn phím để **gửi lại**;
+đóng 2 cửa sổ *mini_broker* / *web_viewer* để dừng.
+
 ### 🧪 Test cục bộ — gửi lên broker của chính bạn
 Không cần broker PavaLife thật, **không cần Docker, không cần tải gì**. Xem [`local-test/README.md`](local-test/README.md):
 ```powershell
