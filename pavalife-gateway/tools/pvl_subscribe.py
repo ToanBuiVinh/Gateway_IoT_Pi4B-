@@ -41,8 +41,13 @@ def main():
     host, port, path, ws, tls = _parse(args.broker)
 
     proto = mqtt.MQTTv311 if args.mqtt_version == "311" else mqtt.MQTTv5
-    c = mqtt.Client(client_id="pvl-subscriber", protocol=proto,
-                    transport="websockets" if ws else "tcp")
+    # Tuong thich paho-mqtt 1.x va 2.x.
+    if hasattr(mqtt, "CallbackAPIVersion"):
+        c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="pvl-subscriber",
+                        protocol=proto, transport="websockets" if ws else "tcp")
+    else:
+        c = mqtt.Client(client_id="pvl-subscriber", protocol=proto,
+                        transport="websockets" if ws else "tcp")
     if ws:
         c.ws_set_options(path=path)
     if tls:

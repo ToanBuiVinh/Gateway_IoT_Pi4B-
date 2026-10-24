@@ -43,10 +43,13 @@ class PavaLifePublisher:
         self._host, self._port, self._path, self._ws, self._tls = _parse(broker_url)
         transport = "websockets" if self._ws else "tcp"
         proto = mqtt.MQTTv311 if str(mqtt_version) in ("311", "3.1.1", "v311") else mqtt.MQTTv5
-        self._client = mqtt.Client(
-            client_id=client_id or f"{reg.GATEWAY_ID}-pub",
-            protocol=proto, transport=transport,
-        )
+        cid = client_id or f"{reg.GATEWAY_ID}-pub"
+        # Tuong thich paho-mqtt 1.x va 2.x: 2.x bat buoc callback_api_version.
+        if hasattr(mqtt, "CallbackAPIVersion"):
+            self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
+                                       client_id=cid, protocol=proto, transport=transport)
+        else:
+            self._client = mqtt.Client(client_id=cid, protocol=proto, transport=transport)
         if self._ws:
             self._client.ws_set_options(path=self._path)
         if self._tls:

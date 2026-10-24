@@ -147,6 +147,7 @@ const dl=D.delivery;
 if(dl){[["Trạng thái", dl.received?"ĐÃ NHẬN ✓":"chưa"],["Topic",dl.topic],
   ["message_type",dl.message_type+"  (seq "+dl.seq+")"],["Định dạng",dl.format+" / "+dl.codec+" · "+dl.size_bytes.toLocaleString()+" B"],
   ["patient_id trong topic?", String(dl.patient_id_in_topic)+"  (rule #10)"]]
+ .concat(dl.via?[["Đường truyền", dl.via]]:[])
  .forEach(([k,v])=>{const r=el("div","kv");r.append(el("span","k",k),el("span","v",v));$("#mqtt").append(r);});}
 else $("#mqtt").append(el("div","d","Chạy với --publish --local để gửi thật và bắt bản tin."));
 
