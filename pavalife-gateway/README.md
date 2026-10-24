@@ -62,25 +62,41 @@ pavalife-gateway/
 └─ tests/test_contract.py
 ```
 
-**Windows:** double-click `run_all.bat` (hoặc `RUN.bat` ở gốc repo).
+### ▶️ Hướng dẫn chạy — từng file làm gì
 
-**Thủ công:**
+> **Windows (nhanh nhất):** double-click `run_all.bat` (hoặc `RUN.bat` ở gốc repo) —
+> nó cài phụ thuộc, sinh mẫu, validate và tạo dashboard.
+
+**Bước 0 — cài phụ thuộc (1 lần):**
 ```bash
 cd pavalife-gateway
-pip install -r requirements.txt
-python tools/gen_samples.py      # sinh 9 bản tin mẫu
-python tests/test_contract.py    # validate (9/9 PASS)
-python tools/gen_viewer.py       # sinh dashboard viewer/index.html
+pip install -r requirements.txt            # jsonschema + paho-mqtt
 ```
 
-**Gửi bản tin (CLI, theo tài liệu):**
+**Chạy từng file — mỗi file một việc:**
+
+| Thứ tự | Lệnh chạy | File | Làm gì | Kết quả |
+|---|---|---|---|---|
+| 1 | `python tools/gen_samples.py` | `tools/gen_samples.py` | Sinh bản tin mẫu đúng contract v2.1 | `samples/*.json` (9 bản tin) |
+| 2 | `python tests/test_contract.py` | `tests/test_contract.py` | Validate schema 2020-12 + rule #7/#8/#10 | in `TẤT CẢ … PASS` |
+| 3 | `python tools/gen_viewer.py` | `tools/gen_viewer.py` | Sinh dashboard tĩnh | `viewer/index.html` (mở bằng trình duyệt) |
+| 4 | `python pvl_send.py <kind>` | `pvl_send.py` | In 1 bản tin JSON ra màn hình (không gửi) | JSON trên stdout |
+| 5 | `python pvl_send.py <kind> --local --publish` | `pvl_send.py` + `gateway/publisher.py` | **Gửi thật** lên broker cục bộ | bản tin lên `mqtt://localhost:1883` |
+| 6 | `python tools/pvl_subscribe.py` | `tools/pvl_subscribe.py` | Nghe & in bản tin nhận được (terminal) | JSON mỗi bản tin |
+| 7 | `python tools/web_viewer.py` | `tools/web_viewer.py` | **Xem dữ liệu LIVE trên trang HTML** | mở `http://localhost:8080` |
+| 8 | `python audio/record_and_publish.py` | `audio/record_and_publish.py` | Pipeline ống nghe: WAV→**FLAC lossless**→(publish) | `audio/out/*` + `audio/report.html` |
+| 9 | `python imaging/wrap_and_publish.py --stow` | `imaging/wrap_and_publish.py` | Đóng gói ảnh siêu âm → **DICOM** → PACS | DICOM + `imaging.study` (MQTT) |
+
+`<kind>` ∈ `vitals · lab · imaging · audio · status · all`. Ví dụ:
 ```bash
 python pvl_send.py vitals --devices blood_pressure,spo2   # in JSON ra màn hình
-python pvl_send.py lab    --devices lab_analyzer,glucose
-python pvl_send.py imaging                                 # siêu âm (imaging.study)
-python pvl_send.py status
-python pvl_send.py all                                     # tất cả bản tin
+python pvl_send.py all                                     # tất cả bản tin (in)
+python pvl_send.py all --local --publish                   # gửi tất cả lên broker cục bộ
 ```
+
+> 📘 **Báo cáo tham khảo** (cách chạy + cơ chế ống nghe/siêu âm + kết nối broker ngoài):
+> [`docs/BAO_CAO_v2.1.md`](docs/BAO_CAO_v2.1.md). Kết nối **broker bên ngoài**:
+> [`docs/EXTERNAL_BROKER.md`](docs/EXTERNAL_BROKER.md).
 
 ### 🧪 Test cục bộ — gửi lên broker của chính bạn
 Không cần broker PavaLife thật, **không cần Docker, không cần tải gì**. Xem [`local-test/README.md`](local-test/README.md):

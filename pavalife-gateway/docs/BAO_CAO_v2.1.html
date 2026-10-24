@@ -1,0 +1,214 @@
+<title>PavaLife Gateway v2.1</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Báo cáo tham khảo: cách chạy từng file, cơ chế ống nghe & máy siêu âm, và kết nối broker MQTT bên ngoài — theo Device Data Contract v2.1.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: báo cáo kỹ thuật — hero số liệu, mục đánh số, sơ đồ luồng 2 thiết bị, checklist broker */
+:root{
+  --bg:#eef2f6; --surface:#fff; --surface-2:#f1f5f9; --border:#d5dee7;
+  --fg:#0e1b24; --muted:#5a6c7a; --accent:#1667c9; --accent-weak:#d9e8fb;
+  --audio:#1f8a4c; --audio-weak:#dcf0e4; --imaging:#7b3fb0; --imaging-weak:#ece0f6;
+  --good:#1f8a4c; --good-weak:#dcf0e4; --warn:#9a5b06; --crit:#c0352f;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --radius:12px; --shadow:0 1px 2px rgba(16,30,40,.06),0 4px 16px rgba(16,30,40,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b141b;--surface:#111d26;--surface-2:#17242e;--border:#243541;--fg:#e7eff5;--muted:#92a6b4;
+  --accent:#5aa2f0;--accent-weak:#12304d;--audio:#4fcc82;--audio-weak:#133325;--imaging:#b98be0;--imaging-weak:#2a1c3b;
+  --good:#4fcc82;--good-weak:#133325;--warn:#e3a94f;--crit:#eb6b63;color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0b141b;--surface:#111d26;--surface-2:#17242e;--border:#243541;--fg:#e7eff5;--muted:#92a6b4;
+  --accent:#5aa2f0;--accent-weak:#12304d;--audio:#4fcc82;--audio-weak:#133325;--imaging:#b98be0;--imaging-weak:#2a1c3b;
+  --good:#4fcc82;--good-weak:#133325;--warn:#e3a94f;--crit:#eb6b63;color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.55;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--surface);z-index:10}
+.wrap{max-width:880px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{text-wrap:balance;margin:0}.mono{font-family:var(--mono)}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding-block:18px;margin-bottom:20px;position:sticky;top:env(safe-area-inset-top,0px);z-index:9}
+header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.015em}
+header .sub{color:var(--muted);font-size:.82rem;margin-top:4px}
+.toggle{float:right;border:1px solid var(--border);background:var(--surface-2);color:var(--fg);border-radius:8px;padding:6px 11px;font:inherit;font-size:.76rem;cursor:pointer}
+.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;box-shadow:var(--shadow)}
+.tile .n{font-size:1.4rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tile .n.ok{color:var(--good)}.tile .l{color:var(--muted);font-size:.72rem;margin-top:2px}
+section{margin-top:30px}
+h2{font-size:1.08rem;display:flex;align-items:baseline;gap:10px}
+h2 .no{font-family:var(--mono);font-size:.82rem;color:var(--accent);font-weight:600}
+h2 .tag{margin-left:auto;font-size:.68rem;font-weight:600;padding:2px 9px;border-radius:999px}
+.tag.audio{background:var(--audio-weak);color:var(--audio)}.tag.imaging{background:var(--imaging-weak);color:var(--imaging)}
+p{margin:.7em 0}.lead{color:var(--muted);font-size:.9rem;margin-top:6px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-top:12px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.82rem;min-width:520px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.03em}
+td code,.ic{font-family:var(--mono);font-size:.78rem;background:var(--surface-2);padding:1px 5px;border-radius:5px;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+/* flow diagram */
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin:4px 0}
+.node{flex:1 1 150px;min-width:0;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.node .t{font-weight:600;font-size:.82rem}.node .d{color:var(--muted);font-size:.72rem;font-family:var(--mono);margin-top:3px;word-break:break-word}
+.node.ac{border-color:var(--accent);background:var(--accent-weak)}
+.node.au{border-color:var(--audio);background:var(--audio-weak)}
+.node.im{border-color:var(--imaging);background:var(--imaging-weak)}
+.arrow{align-self:center;color:var(--muted);font-size:1.1rem;flex:0 0 auto}
+.lane{border-left:3px solid var(--border);padding-left:12px;margin:12px 0}
+.lane.data{border-left-color:var(--imaging)}.lane.ctrl{border-left-color:var(--accent)}
+.lane .h{font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+ul{margin:.6em 0;padding-left:1.1em}li{margin:.35em 0;font-size:.88rem}
+li b{font-weight:600}
+.pill{display:inline-block;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--good-weak);color:var(--good);white-space:nowrap}
+pre{margin:10px 0 0;padding:13px;overflow:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;font-family:var(--mono);font-size:.76rem;line-height:1.5}
+.note{font-size:.82rem;color:var(--muted);border-left:3px solid var(--warn);padding:6px 0 6px 12px;margin:12px 0;background:linear-gradient(90deg,var(--surface-2),transparent)}
+footer{color:var(--muted);font-size:.76rem;border-top:1px solid var(--border);margin-top:34px;padding:18px 0 46px}
+footer b{color:var(--fg)}
+@media (max-width:620px){.tiles{grid-template-columns:repeat(2,1fr)}.toggle{float:none;display:block;margin-bottom:10px}}
+</style>
+
+<header><div class="wrap">
+  <button class="toggle" id="theme" type="button">◐ Giao diện</button>
+  <h1>PavaLife Gateway — Báo cáo v2.1</h1>
+  <div class="sub">Cách chạy · cơ chế ống nghe &amp; máy siêu âm · kết nối broker ngoài — theo
+    <span class="mono">Device Data Contract v2.1</span></div>
+</div></header>
+
+<main class="wrap">
+  <div class="tiles">
+    <div class="tile"><div class="n">6 + 2</div><div class="l">thiết bị (lõi + siêu âm/ống nghe)</div></div>
+    <div class="tile"><div class="n ok">−27.4%</div><div class="l">FLAC lossless (bit-exact)</div></div>
+    <div class="tile"><div class="n ok">DICOM ✓</div><div class="l">STOW/WADO-RS (Orthanc)</div></div>
+    <div class="tile"><div class="n">#10</div><div class="l">patient_id không vào topic</div></div>
+  </div>
+  <p class="lead">Mã nguồn follow đúng hợp đồng dữ liệu v2.1. Broker production
+    <span class="ic">wss://mqtt-hn-n1.pavalife.com:443/mqtt</span> (MQTT 5.0 over WSS); topic
+    <span class="ic">pvl/v2/gw/GW-ROBOT-DEV-001/up/{message_type}</span>.</p>
+
+  <section>
+    <h2><span class="no">01</span> Cách chạy — từng file</h2>
+    <p class="lead">Cài 1 lần: <span class="ic">pip install -r requirements.txt</span>. Mỗi file một việc:</p>
+    <div class="card scroll"><table>
+      <tr><th>#</th><th>Lệnh</th><th>File</th><th>Chức năng</th></tr>
+      <tr><td>1</td><td><code>python tools/gen_samples.py</code></td><td>gen_samples.py</td><td>Sinh bản tin JSON mẫu đúng schema</td></tr>
+      <tr><td>2</td><td><code>python tests/test_contract.py</code></td><td>test_contract.py</td><td>Validate schema 2020-12 + rule #7/#8/#10</td></tr>
+      <tr><td>3</td><td><code>python tools/gen_viewer.py</code></td><td>gen_viewer.py</td><td>Dashboard tĩnh <span class="ic">viewer/index.html</span></td></tr>
+      <tr><td>4</td><td><code>python pvl_send.py &lt;kind&gt;</code></td><td>pvl_send.py</td><td>In 1 bản tin ra màn hình (không gửi)</td></tr>
+      <tr><td>5</td><td><code>python pvl_send.py &lt;kind&gt; --local --publish</code></td><td>pvl_send.py + publisher.py</td><td>Gửi thật lên broker cục bộ</td></tr>
+      <tr><td>6</td><td><code>python tools/pvl_subscribe.py</code></td><td>pvl_subscribe.py</td><td>Nghe &amp; in bản tin (terminal)</td></tr>
+      <tr><td>7</td><td><code>python tools/web_viewer.py</code></td><td>web_viewer.py</td><td>Xem LIVE trên HTML <span class="ic">http://localhost:8080</span></td></tr>
+      <tr><td>8</td><td><code>python audio/record_and_publish.py</code></td><td>record_and_publish.py</td><td>Ống nghe: WAV→FLAC lossless→(publish)</td></tr>
+      <tr><td>9</td><td><code>python imaging/wrap_and_publish.py --stow</code></td><td>wrap_and_publish.py</td><td>Siêu âm → DICOM → PACS → imaging.study</td></tr>
+    </table></div>
+    <p class="lead"><span class="ic">&lt;kind&gt;</span> ∈ vitals · lab · imaging · audio · status · all. Chạy thử không cần Docker: mini_broker + web_viewer + <span class="ic">pvl_send.py all --local --publish</span>.</p>
+  </section>
+
+  <section>
+    <h2><span class="no">02a</span> Cơ chế: ống nghe điện tử <span class="tag audio">observation.audio</span></h2>
+    <p>Màng/piezo (hoặc MEMS mic) áp lên da chuyển rung động âm tim/phổi thành tín hiệu điện;
+      ADC số hoá (≥16-bit, ≥4&nbsp;kHz). Firmware <b>không lọc/nén mất dữ liệu</b> — giữ RAW. Từ đây tách 2 đường:</p>
+    <div class="card">
+      <div class="flow">
+        <div class="node"><div class="t">Cảm biến + ADC</div><div class="d">piezo/MEMS · ≥16-bit ≥4kHz · RAW</div></div>
+        <div class="arrow">→</div>
+        <div class="node au"><div class="t">LIVE — nghe ngay</div><div class="d">WebRTC/RTP · Opus · ~150–250ms</div></div>
+      </div>
+      <div class="flow" style="margin-top:8px">
+        <div class="node" style="flex-basis:150px;visibility:hidden">x</div>
+        <div class="arrow" style="visibility:hidden">→</div>
+        <div class="node au"><div class="t">RECORD — lưu hồ sơ</div><div class="d">WAV/FLAC lossless raw · sha256 · S3</div></div>
+      </div>
+      <div class="flow" style="margin-top:8px">
+        <div class="node ac"><div class="t">Gateway → MQTT</div><div class="d">observation.audio = metadata + tham chiếu (KHÔNG có audio)</div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="t">Cloud / PIH</div><div class="d">nghe lại: tải storage.url · trực tiếp: live.endpoint</div></div>
+      </div>
+    </div>
+    <ul>
+      <li><b>Live</b> ưu tiên độ trễ (WebRTC). <b>Lưu hồ sơ</b> ưu tiên chất lượng: file <b>lossless, RAW không lọc</b>.</li>
+      <li>Vì sao lossless: murmur/ran/wheeze ở dải tần quan trọng — <b>nén lossy (MP3/AAC) hoặc lọc sai xoá mất thông tin chẩn đoán</b>. Lọc/vẽ phonocardiogram làm trên <b>bản sao</b>.</li>
+      <li>Đã kiểm chứng thật: WAV <b>192,044 B</b> → FLAC <b>139,337 B</b> (−27.4%), giải mã khớp bit-exact <span class="pill">lossless ✓</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="no">02b</span> Cơ chế: máy siêu âm <span class="tag imaging">imaging.study</span></h2>
+    <p>Đầu dò (transducer) phát sóng siêu âm bằng tinh thể áp điện; sóng phản xạ từ ranh giới
+      mô quay lại — đo <b>thời gian về + cường độ</b> để dựng mỗi điểm sáng → ảnh <b>B-mode</b> 2D;
+      nhiều khung liên tiếp = <b>cine loop</b>. Ảnh rất lớn nên tách 2 mặt phẳng:</p>
+    <div class="card">
+      <div class="lane data"><div class="h">Data plane — ảnh lớn (HTTP)</div>
+        <div class="flow" style="margin-top:6px">
+          <div class="node im"><div class="t">Máy US / đầu dò raw</div><div class="d">DICOM sẵn, hoặc raw pixel</div></div>
+          <div class="arrow">→</div>
+          <div class="node im"><div class="t">STOW-RS / C-STORE</div><div class="d">gateway đóng gói DICOM nếu là raw</div></div>
+          <div class="arrow">→</div>
+          <div class="node"><div class="t">PACS / object store</div><div class="d">Orthanc · DICOMweb</div></div>
+        </div>
+      </div>
+      <div class="lane ctrl"><div class="h">Control plane — nhỏ (MQTT)</div>
+        <div class="flow" style="margin-top:6px">
+          <div class="node ac"><div class="t">Gateway → imaging.study</div><div class="d">study_uid + wado_rs_study · KHÔNG pixel</div></div>
+          <div class="arrow">→</div>
+          <div class="node"><div class="t">Cloud/PIH → WADO-RS</div><div class="d">lazy GET khi bác sĩ mở · OHIF/Cornerstone</div></div>
+        </div>
+      </div>
+    </div>
+    <ul>
+      <li><b>3A — máy US thương mại:</b> tự xuất DICOM → gateway relay (C-STORE SCP) → STOW-RS lên PACS.</li>
+      <li><b>3B — đầu dò chỉ xuất raw:</b> truyền raw bằng kênh bulk (TCP/HTTP/WS, có checksum) — <b>không dùng MQTT</b>; gateway ghép khung → đóng gói DICOM (pydicom).</li>
+      <li>Nếu raw: thống nhất <b>pixel_format</b> (gray8/gray16 LE), <b>kích thước</b>, <b>thứ tự frame</b> (row-major, trên-trái), <b>toàn vẹn</b> (sha256 + đúng số byte).</li>
+      <li>Đã kiểm chứng thật trên Orthanc: STOW cine 8 khung → QIDO liệt kê (US) → WADO render khung <span class="pill">DICOM ✓</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="no">03</span> Kết nối broker bên ngoài</h2>
+    <p class="lead">Chuyển từ broker test cục bộ sang broker thật (PavaLife hoặc bên thứ ba). Code đã sẵn sàng — <span class="ic">publisher.py</span> tự suy TLS/WebSocket từ scheme.</p>
+    <div class="card scroll"><table>
+      <tr><th>Cần xin bên vận hành</th><th>Ví dụ</th><th>Dùng</th></tr>
+      <tr><td>URL + cổng + scheme</td><td><code>wss://…:443/mqtt</code></td><td>--broker</td></tr>
+      <tr><td>Giao thức</td><td>MQTT 5.0</td><td>--mqtt-version 5</td></tr>
+      <tr><td>Xác thực</td><td>user/pass · mTLS · token</td><td>--username/--password</td></tr>
+      <tr><td>CA cert (nếu CA nội bộ)</td><td><code>pavalife-ca.pem</code></td><td>--ca-cert</td></tr>
+      <tr><td>client_id + ACL topic</td><td><code>…/up/#</code></td><td>quyền trên broker</td></tr>
+      <tr><td>Giới hạn</td><td>size · QoS · rate</td><td>thiết kế gửi</td></tr>
+    </table></div>
+<pre>python pvl_send.py all \
+  --broker "wss://mqtt-hn-n1.pavalife.com:443/mqtt" --mqtt-version 5 \
+  --username "GW-ROBOT-DEV-001" --password "&lt;cấp-bởi-PavaLife&gt;" \
+  --ca-cert pavalife-ca.pem \
+  --publish</pre>
+    <ul>
+      <li>Bản tin <b>đầu tiên nên là <span class="ic">device.status</span></b> (Phụ lục A: "bản tin kiểm thử kết nối đầu tiên").</li>
+      <li>Production: <b>QoS 1</b> (khử trùng bằng message_id — rule #2); sequence_no tăng dần kể cả sau reconnect (rule #3); <b>LWT</b> device.status=offline; store-and-forward khi mất mạng.</li>
+      <li>Bảo mật: TLS bật; bí mật trong secret manager (<b>không hardcode/commit</b>); patient_id <b>không</b> vào topic/log (rule #10); payload lớn (ảnh/audio) <b>không</b> qua broker.</li>
+    </ul>
+    <p class="note">Endpoint/chứng chỉ/ACL/giới hạn thật thuộc <b>Phụ lục C — Cần PavaLife xác nhận</b>; phải được PavaLife duyệt trước khi dùng dữ liệu thật.</p>
+  </section>
+
+  <footer>
+    Tham chiếu: <b>PVL_Device_Data_Contract_v2.1_6thietbi.docx</b> · chi tiết trong repo:
+    <span class="mono">docs/AUDIO_DESIGN.md</span>, <span class="mono">docs/IMAGING_DESIGN.md</span>,
+    <span class="mono">docs/EXTERNAL_BROKER.md</span>, <span class="mono">docs/BAO_CAO_v2.1.md</span>.
+    Dữ liệu mô phỏng nhưng đúng cấu trúc; FLAC, DICOM &amp; MQTT đã chạy thật.
+  </footer>
+</main>
+<script>
+"use strict";
+(function(){
+  var r=document.documentElement, b=document.getElementById("theme");
+  try{var s=localStorage.getItem("pvl-rep-theme");if(s)r.setAttribute("data-theme",s);}catch(e){}
+  b.addEventListener("click",function(){
+    var cur=r.getAttribute("data-theme");
+    var pd=matchMedia("(prefers-color-scheme:dark)").matches;
+    var n=(cur==="dark"||(!cur&&pd))?"light":"dark";
+    r.setAttribute("data-theme",n);
+    try{localStorage.setItem("pvl-rep-theme",n);}catch(e){}
+  });
+})();
+</script>

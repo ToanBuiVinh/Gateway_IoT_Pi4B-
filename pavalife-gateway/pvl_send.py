@@ -80,6 +80,8 @@ def main() -> int:
                     help="mac dinh 5; --local tu dung 311 (hop mini_broker / Mosquitto)")
     ap.add_argument("--username", default="")
     ap.add_argument("--password", default="")
+    ap.add_argument("--ca-cert", default=None, help="CA chung chi broker (neu CA noi bo)")
+    ap.add_argument("--insecure", action="store_true", help="bo qua xac minh TLS (CHI de thu nghiem)")
     args = ap.parse_args()
     if args.local:
         args.broker = "mqtt://localhost:1883"
@@ -104,6 +106,7 @@ def main() -> int:
     if args.publish:
         from gateway.publisher import PavaLifePublisher
         pub = PavaLifePublisher(args.broker, username=args.username, password=args.password,
+                                ca_cert=args.ca_cert, insecure=args.insecure,
                                 mqtt_version=mqtt_version)
         pub.connect()
         for m in msgs:
