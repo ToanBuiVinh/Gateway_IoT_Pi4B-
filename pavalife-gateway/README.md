@@ -56,7 +56,7 @@ pavalife-gateway/
 ├─ schema/device_data_contract_v2_1.schema.json   # JSON Schema 2020-12
 ├─ gateway/ registry.py · contract.py · validator.py · publisher.py
 ├─ pvl_send.py        # CLI gửi bản tin (vitals/lab/status)
-├─ tools/ gen_samples.py · gen_viewer.py
+├─ tools/ gen_samples.py · gen_viewer.py · pvl_subscribe.py · web_viewer.py (xem HTML live)
 ├─ samples/*.json     # 9 bản tin mẫu (đã sinh)
 ├─ viewer/index.html  # dashboard (đã sinh)
 └─ tests/test_contract.py
@@ -93,6 +93,9 @@ python tools\pvl_subscribe.py
 REM 3) gửi (cửa sổ khác):
 python pvl_send.py all --local --publish      REM -> mqtt://localhost:1883
 ```
+**Xem dữ liệu trên trang HTML (live):** `python tools\web_viewer.py` rồi mở
+`http://localhost:8080` — bản tin hiện trực tiếp thành thẻ (cầu nối broker→HTTP/SSE,
+chạy với cả mini_broker lẫn Mosquitto).
 
 ### 🖼️ Đường DICOM thật (pydicom + Orthanc)
 Đóng gói ảnh siêu âm → DICOM → Orthanc (DICOMweb) → thông báo MQTT. Xem

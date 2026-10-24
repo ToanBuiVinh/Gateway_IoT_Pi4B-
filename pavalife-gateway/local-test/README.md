@@ -63,6 +63,22 @@ Cửa sổ 2 (subscriber) sẽ in ra từng bản tin JSON nhận được.
 > mosquitto_sub -h localhost -t "pvl/v2/gw/#" -v
 > ```
 
+## 4. 🌐 Xem dữ liệu trên TRANG HTML (live) — `web_viewer.py`
+Trình duyệt không nói được MQTT/TCP thẳng, nên `web_viewer.py` làm **cầu nối**:
+`broker → (MQTT/paho) → web_viewer → (HTTP+SSE) → trình duyệt`. Chạy được với
+**mini_broker, Mosquitto hay production** (chỉ cần `paho-mqtt`).
+```powershell
+cd pavalife-gateway
+python tools\web_viewer.py                    REM nghe mqtt://localhost:1883
+```
+Rồi mở trình duyệt vào **http://localhost:8080** — mỗi bản tin gateway publish sẽ
+hiện LIVE thành thẻ (màu theo loại: vitals/lab/imaging/audio/status), có nhãn
+`rule #10 ✓` và nút *Xem JSON đầy đủ*. Mở cửa sổ 3 gửi `pvl_send.py all --local --publish`
+để thấy thẻ chạy vào ngay.
+```powershell
+python tools\web_viewer.py --broker mqtt://localhost:1883 --http-port 8080
+```
+
 ## Ghi chú
 - `--local` ⇒ broker = `mqtt://localhost:1883`. Bỏ `--local` và `--broker ws://localhost:9001/mqtt` để test WebSocket.
 - `allow_anonymous true` chỉ dùng để test; production (PavaLife WSS) có xác thực riêng.
