@@ -1,0 +1,14 @@
+# Đường LƯU HỒ SƠ ống nghe (observation.audio, FLAC lossless)
+#
+# BẮT BUỘC: `flac` CLI (bộ mã hoá lossless chính thức của Xiph).
+#   - Ubuntu/Debian/Pi OS:  sudo apt install flac
+#   - macOS (Homebrew):     brew install flac
+#   - Windows:              https://xiph.org/flac/download.html  (thêm vào PATH)
+#   Pipeline gọi `flac --best` để nén và `flac -d` để giải mã kiểm chứng bit-exact.
+#   Phần synth tín hiệu + ghi/đọc WAV dùng thư viện chuẩn (wave) — KHÔNG cần cài gì.
+#
+# Chỉ cần khi publish thật lên broker:
+paho-mqtt==1.6.1
+#
+# Tuỳ chọn (nếu muốn đọc/ghi FLAC trực tiếp trong Python thay cho flac CLI):
+# soundfile==0.12.1     # cần libsndfile >= 1.0.29 có hỗ trợ FLAC

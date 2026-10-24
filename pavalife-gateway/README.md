@@ -103,6 +103,17 @@ cd imaging && docker compose up -d               # Orthanc (PACS + DICOMweb) :80
 python imaging/wrap_and_publish.py --stow --publish --local
 ```
 
+### 🎧 Đường LƯU HỒ SƠ ống nghe (FLAC lossless thật)
+Synth tín hiệu nghe tim → WAV → **nén FLAC `--best`** → **kiểm chứng lossless (bit-exact)** →
+bản tin `observation.audio` → publish. Có **report HTML** xem trực quan. Xem
+[`audio/README.md`](audio/README.md):
+```bash
+pip install -r audio/requirements-audio.txt      # cần `flac` CLI trên PATH
+python audio/record_and_publish.py                # FLAC + kiểm chứng lossless (192,044→139,337 B, giảm 27.4%)
+python audio/gen_report.py                        # -> audio/report.html (mở bằng trình duyệt)
+python audio/record_and_publish.py --publish --local   # gửi thật lên broker cục bộ
+```
+
 ## Dashboard
 Vitals (BP/SpO2/nhiệt độ/cân) chạy **monitor đẩy 1 điểm / 500ms**; lab (uric acid, glucose)
 biểu đồ thanh theo ngưỡng; thẻ **device.status**; bảng **ví dụ thiếu dữ liệu**; mỗi thẻ có tab
