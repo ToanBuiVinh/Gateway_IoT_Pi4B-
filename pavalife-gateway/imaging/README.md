@@ -11,18 +11,29 @@ pip install -r imaging/requirements-imaging.txt
 ```
 
 ## 2. Chạy Orthanc (PACS có DICOMweb)
+
+### Cách A — Docker
 ```bash
 cd pavalife-gateway/imaging
 docker compose up -d
-# REST + DICOMweb: http://localhost:8042  (DICOMweb: http://localhost:8042/dicom-web)
-# Giao diện: mở http://localhost:8042  trên trình duyệt
 ```
 
-> **Không có Docker?** Tải **Orthanc bản cài đặt Windows** tại
-> https://www.orthanc-server.com/download.php (đã kèm plugin DICOMweb), cài rồi bật
-> DICOMweb trong `Configuration` (xem `orthanc.json` mẫu ở đây). Hoặc **bỏ qua Orthanc**:
-> chạy `python imaging/wrap_and_publish.py` (không `--stow`) chỉ để tạo file `.dcm` và
-> xem bản tin `imaging.study` — vẫn kiểm chứng được luồng đóng gói DICOM + thông báo.
+### Cách B — Cài native, KHÔNG cần Docker ✅ (Linux / Raspberry Pi)
+```bash
+sudo apt-get update
+sudo apt-get install -y orthanc orthanc-dicomweb
+# Chạy với config kèm sẵn (đã bật DICOMweb, port 8042):
+Orthanc imaging/orthanc.json         # binary thường ở /usr/sbin/Orthanc
+```
+
+### Cách C — Windows không Docker
+Tải **Orthanc installer** (kèm DICOMweb) tại https://www.orthanc-server.com/download.php,
+cài rồi dùng `imaging/orthanc.json` làm cấu hình (đã bật DICOMweb).
+
+> DICOMweb: `http://localhost:8042/dicom-web` · Giao diện: mở `http://localhost:8042`.
+>
+> **Không muốn dựng Orthanc?** Vẫn kiểm chứng được phần đóng gói: chạy
+> `python imaging/wrap_and_publish.py` (bỏ `--stow`) để tạo `.dcm` + xem bản tin `imaging.study`.
 
 ## 3. (Tuỳ chọn) Broker cục bộ để nhận thông báo
 Xem [`../local-test/README.md`](../local-test/README.md): `docker compose up -d` trong
@@ -50,11 +61,21 @@ python imaging/wrap_and_publish.py --stow --publish --local
 python imaging/wrap_and_publish.py --frames 8 --stow --publish --local
 ```
 
-## 5. Xem lại ảnh (tầng Application)
+## 5. Kiểm chứng (tầng Application lấy lại ảnh)
+```bash
+python imaging/verify_dicomweb.py          # QIDO-RS liệt kê study + lưu 1 khung ra PNG
+```
+Hoặc thủ công:
 - Mở **http://localhost:8042** (Orthanc Explorer) → thấy study vừa STOW.
-- Lấy qua **WADO-RS**: `GET http://localhost:8042/dicom-web/studies/<StudyInstanceUID>`
-  (đúng URL nằm trong `storage.wado_rs_study` của bản tin `imaging.study`).
+- **QIDO-RS**: `GET http://localhost:8042/dicom-web/studies` (liệt kê study).
+- **WADO-RS**: `GET http://localhost:8042/dicom-web/studies/<StudyInstanceUID>` (tải DICOM) —
+  đúng URL nằm trong `storage.wado_rs_study` của bản tin `imaging.study`.
 - Viewer web thật: trỏ **OHIF Viewer** vào DICOMweb root `http://localhost:8042/dicom-web`.
+
+## ✅ Đã kiểm thử end-to-end
+Trên Orthanc **1.12.2 + orthanc-dicomweb** (cài native): đóng gói US cine 8 khung
+(132×176, MONOCHROME2) → **STOW-RS** lên Orthanc → **QIDO-RS** thấy study (Modality US,
+NumberOfFrames 8) → **render khung** ra PNG 176×132. Toàn bộ chạy đúng.
 
 ## Luồng
 ```
