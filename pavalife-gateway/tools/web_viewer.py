@@ -159,14 +159,27 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def _html(self, page):
+        body = page.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
         if self.path == "/" or self.path.startswith("/index"):
-            body = PAGE.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
+            self._html(DASH_PAGE or PAGE)        # dashboard (do thi/audio/sieu am); fallback trang log
+        elif self.path == "/log":
+            self._html(PAGE)                     # danh sach ban tin dang the
+        elif self.path == "/audio.wav":
+            self.send_response(200 if WAV_BYTES else 404)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(WAV_BYTES)))
+            self.send_header("Accept-Ranges", "none")
             self.end_headers()
-            self.wfile.write(body)
+            if WAV_BYTES:
+                self.wfile.write(WAV_BYTES)
         elif self.path == "/messages":
             with _lock:
                 body = json.dumps(list(MESSAGES), ensure_ascii=False).encode("utf-8")
@@ -216,6 +229,8 @@ def main():
     start_subscriber(args.broker)
     httpd = ThreadingHTTPServer((args.host, args.http_port), Handler)
     print(f"[viewer] MO TRINH DUYET: http://{args.host}:{args.http_port}")
+    print(f"[viewer]   /      -> dashboard (do thi chay lien tuc + nghe am tim + cine sieu am)")
+    print(f"[viewer]   /log   -> danh sach ban tin dang the")
     print(f"[viewer] dang cau noi broker {args.broker} -> trang HTML (SSE). Ctrl+C de dung.")
     try:
         httpd.serve_forever()
@@ -299,6 +314,54 @@ es.onopen=()=>{document.getElementById("dot").classList.add("on");document.getEl
 es.onerror=()=>{document.getElementById("dot").classList.remove("on");document.getElementById("conn").textContent="mất kết nối — thử lại…";};
 es.onmessage=ev=>{try{add(JSON.parse(ev.data));}catch(e){}};
 </script></body></html>"""
+
+
+# ---- Dashboard (đồ thị + âm thanh + siêu âm) dùng chung template với artifact ----
+# Script nhúng thêm: hút dữ liệu THẬT từ broker (SSE) vào đồ thị + log bản tin.
+LIVE_WIRING = r"""
+/* ----- LIVE: hut du lieu that tu broker vao do thi + log ----- */
+(function(){
+  if(typeof charts==="undefined")return;
+  var byLoinc={}; charts.forEach(function(c){byLoinc[c.sig.loinc]=c;});
+  function flash(c){try{c.val.animate([{opacity:.25},{opacity:1}],{duration:400});}catch(e){}}
+  function pushReal(c,v){v=+v;if(isNaN(v))return;
+    c.buf.push(v);if(c.buf.length>WIN)c.buf.shift();
+    c.val.textContent=(c.sig.unit==="°C")?v.toFixed(1):Math.round(v);
+    var ok=v>=c.sig.lo&&v<=c.sig.hi;c.pill.className="pill "+(ok?"ok":"sus");
+    c.pill.textContent=ok?"bình thường":"theo dõi";drawChart(c);flash(c);}
+  function absorb(raw){var p=raw&&raw.payload;if(!p)return;
+    (p.measurements||[]).forEach(function(m){
+      var loinc=m.code&&m.code.loinc;
+      if(("value" in m)&&byLoinc[loinc])pushReal(byLoinc[loinc],m.value);
+      (m.components||[]).forEach(function(cp){var lc=(cp.local_code||"").toLowerCase();
+        if(lc.indexOf("systol")>=0&&byLoinc["8480-6"])pushReal(byLoinc["8480-6"],cp.value);
+        if(lc.indexOf("diastol")>=0&&byLoinc["8462-4"])pushReal(byLoinc["8462-4"],cp.value);});});}
+  var main=document.querySelector("main");
+  var h2=document.createElement("h2");h2.textContent="Kết nối broker (MQTT → SSE)";
+  var box=document.createElement("div");box.className="card";box.style.marginTop="10px";
+  box.innerHTML='<div style="font-size:.8rem;color:var(--muted)">Bản tin nhận từ broker (LIVE): <b id="lc">0</b></div>'
+    +'<div id="lg" class="mono" style="font-size:.74rem;margin-top:6px;max-height:150px;overflow:auto"></div>';
+  main.appendChild(h2);main.appendChild(box);
+  var lg=box.querySelector("#lg"),lc=box.querySelector("#lc"),cnt=0;
+  function addlog(d){cnt++;lc.textContent=cnt;var r=document.createElement("div");
+    r.textContent="← "+d.message_type+" seq "+d.seq+(d.items&&d.items[0]?"  · "+d.items[0]:"");
+    lg.insertBefore(r,lg.firstChild);while(lg.childNodes.length>50)lg.removeChild(lg.lastChild);}
+  function handle(d){addlog(d);if(d.raw)absorb(d.raw);}
+  fetch("/messages").then(function(r){return r.json();}).then(function(a){a.forEach(handle);}).catch(function(){});
+  try{var es=new EventSource("/stream");es.onmessage=function(ev){try{handle(JSON.parse(ev.data));}catch(e){}};}catch(e){}
+})();
+"""
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(_HERE), "viewer"))
+try:
+    import gen_live_dashboard as _dash          # noqa: E402
+    WAV_BYTES = _dash.audio_asset()[0]
+    DASH_PAGE = _dash.render(_dash.build_data(audio_src="/audio.wav"),
+                             use_real_us=True, extra_script=LIVE_WIRING)
+except Exception as _e:                          # thieu viewer/ -> van chay trang log
+    WAV_BYTES, DASH_PAGE = b"", None
+    print("[viewer] khong dung duoc dashboard, chi chay trang log:", _e)
 
 
 if __name__ == "__main__":

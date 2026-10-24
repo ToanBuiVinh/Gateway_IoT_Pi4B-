@@ -58,7 +58,7 @@ pavalife-gateway/
 ├─ pvl_send.py        # CLI gửi bản tin (vitals/lab/status)
 ├─ tools/ gen_samples.py · gen_viewer.py · pvl_subscribe.py · web_viewer.py (xem HTML live)
 ├─ samples/*.json     # 9 bản tin mẫu (đã sinh)
-├─ viewer/index.html  # dashboard (đã sinh)
+├─ viewer/ index.html · gen_live_dashboard.py → live_dashboard.html (đồ thị + nghe tim + cine siêu âm)
 └─ tests/test_contract.py
 ```
 
@@ -139,9 +139,25 @@ python audio/record_and_publish.py --publish --local   # gửi thật lên broke
 ```
 
 ## Dashboard
-Vitals (BP/SpO2/nhiệt độ/cân) chạy **monitor đẩy 1 điểm / 500ms**; lab (uric acid, glucose)
-biểu đồ thanh theo ngưỡng; thẻ **device.status**; bảng **ví dụ thiếu dữ liệu**; mỗi thẻ có tab
-**Bản tin (MQTT)** xem JSON đầy đủ. Topic hiển thị không chứa `patient_id`.
+
+### 📈 Live Monitor — đồ thị chạy liên tục + nghe tim + cine siêu âm
+`viewer/live_dashboard.html` (sinh từ `viewer/gen_live_dashboard.py`): **đồ thị vitals cuộn
+liên tục** (HR/SpO2/nhiệt độ/HA, chu kỳ ~10 giá trị lặp), **nghe được âm tim** (WAV nhúng,
+phát loop + sóng chạy), và **cine siêu âm B-mode** (canvas). Mở trực tiếp bằng trình duyệt.
+
+Khi chạy **`python tools/web_viewer.py`** thì trang `http://localhost:8080` chính là Live
+Monitor này, nhưng **lấy dữ liệu THẬT từ broker** (đồ thị hút giá trị từ bản tin
+`observation.vitals/lab`), phát WAV phục vụ tại `/audio.wav`, và hiển thị **ảnh/cine siêu âm
+thật từ Wikimedia Commons (CC BY-SA)** — nếu không tải được sẽ tự chuyển sang cine mô phỏng.
+`http://localhost:8080/log` là danh sách bản tin dạng thẻ.
+```bash
+python viewer/gen_live_dashboard.py     # sinh viewer/live_dashboard.html (xem offline)
+python tools/web_viewer.py              # -> http://localhost:8080 (LIVE từ broker)
+```
+
+### Dashboard tĩnh (bản cũ)
+`viewer/index.html`: vitals (BP/SpO2/nhiệt độ/cân) **monitor đẩy 1 điểm / 500ms**; lab biểu đồ
+thanh theo ngưỡng; thẻ **device.status**; mỗi thẻ có tab **Bản tin (MQTT)**. Topic không chứa `patient_id`.
 
 ## Cần PavaLife xác nhận (trước khi dùng dữ liệu thật)
 - Mã LOINC cho **axit uric máu mao mạch** (14933-6 là Serum/Plasma — rule #6).
