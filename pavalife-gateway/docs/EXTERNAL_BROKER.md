@@ -1,5 +1,9 @@
 # Kết nối broker MQTT bên ngoài (production / bên thứ ba)
 
+> 📘 **Bản runbook chi tiết hơn** (từng bước, công cụ chẩn đoán `broker_check.py`, nhiều kịch
+> bản, bảng khắc phục lỗi): [`KET_NOI_BROKER.md`](KET_NOI_BROKER.md). Trang này là bản tóm tắt.
+
+
 Hướng dẫn chuyển từ broker test cục bộ (`mqtt://localhost:1883`) sang **broker thật**,
 ví dụ broker PavaLife trong contract v2.1:
 

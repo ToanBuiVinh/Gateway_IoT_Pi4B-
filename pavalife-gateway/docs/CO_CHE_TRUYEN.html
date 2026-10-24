@@ -1,0 +1,226 @@
+<title>Cơ chế truyền Audio & Ảnh</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Cơ chế gửi audio ống nghe và ảnh siêu âm end-to-end: tách control/data plane, WebRTC/FLAC, DICOM STOW/WADO-RS — theo contract v2.1.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: báo cáo kỹ thuật 2 phần (audio/ảnh) — lane control/data, sequence dọc, bảng trường */
+:root{
+  --bg:#eef2f6;--surface:#fff;--surface-2:#f1f5f9;--border:#d5dee7;--fg:#0e1b24;--muted:#5a6c7a;
+  --accent:#1667c9;--accent-weak:#d9e8fb;--audio:#1f8a4c;--audio-weak:#dcf0e4;--imaging:#7b3fb0;--imaging-weak:#ece0f6;
+  --good:#1f8a4c;--warn:#9a5b06;--crit:#c0352f;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --radius:12px;--shadow:0 1px 2px rgba(16,30,40,.06),0 4px 16px rgba(16,30,40,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b141b;--surface:#111d26;--surface-2:#17242e;--border:#243541;--fg:#e7eff5;--muted:#92a6b4;
+  --accent:#5aa2f0;--accent-weak:#12304d;--audio:#4fcc82;--audio-weak:#133325;--imaging:#b98be0;--imaging-weak:#2a1c3b;
+  --good:#4fcc82;--warn:#e3a94f;--crit:#eb6b63;color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0b141b;--surface:#111d26;--surface-2:#17242e;--border:#243541;--fg:#e7eff5;--muted:#92a6b4;
+  --accent:#5aa2f0;--accent-weak:#12304d;--audio:#4fcc82;--audio-weak:#133325;--imaging:#b98be0;--imaging-weak:#2a1c3b;
+  --good:#4fcc82;--warn:#e3a94f;--crit:#eb6b63;color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.55;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--surface);z-index:10}
+.wrap{max-width:900px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{text-wrap:balance;margin:0}.mono{font-family:var(--mono)}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding-block:18px;margin-bottom:18px;position:sticky;top:env(safe-area-inset-top,0px);z-index:9}
+header h1{font-size:1.3rem;font-weight:700;letter-spacing:-.015em}
+header .sub{color:var(--muted);font-size:.82rem;margin-top:3px}
+.toggle{float:right;border:1px solid var(--border);background:var(--surface-2);color:var(--fg);border-radius:8px;padding:6px 10px;font:inherit;font-size:.76rem;cursor:pointer}
+.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h2{font-size:1.1rem;margin:26px 0 10px;display:flex;align-items:center;gap:9px}
+h2 .tag{font-size:.66rem;font-weight:700;padding:2px 9px;border-radius:999px}
+.tag.audio{background:var(--audio-weak);color:var(--audio)}.tag.imaging{background:var(--imaging-weak);color:var(--imaging)}
+h3{font-size:.95rem;margin:18px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-size:.78rem}
+p{margin:.6em 0}.lead{color:var(--muted);font-size:.88rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:15px;margin-top:10px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.81rem;min-width:480px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em}
+tr:last-child td{border-bottom:none}
+code,.ic{font-family:var(--mono);font-size:.8rem;background:var(--surface-2);padding:1px 5px;border-radius:5px}
+/* lane control/data */
+.lane{border-left:3px solid var(--border);padding:4px 0 4px 12px;margin:10px 0}
+.lane.data{border-left-color:var(--imaging)}.lane.ctrl{border-left-color:var(--accent)}.lane.au{border-left-color:var(--audio)}
+.lane .h{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:7px}
+.node{flex:1 1 130px;min-width:0;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:8px 10px}
+.node .t{font-weight:600;font-size:.78rem}.node .d{color:var(--muted);font-size:.68rem;font-family:var(--mono);margin-top:2px;word-break:break-word}
+.node.ac{border-color:var(--accent);background:var(--accent-weak)}.node.im{border-color:var(--imaging);background:var(--imaging-weak)}.node.aud{border-color:var(--audio);background:var(--audio-weak)}
+.arrow{align-self:center;color:var(--muted);font-size:1.05rem;flex:0 0 auto}
+/* sequence dọc */
+.seq{list-style:none;margin:6px 0 0;padding:0;counter-reset:s}
+.seq li{position:relative;padding:7px 0 7px 30px;border-bottom:1px dashed var(--border);font-size:.84rem}
+.seq li:last-child{border-bottom:none}
+.seq li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:7px;width:20px;height:20px;border-radius:50%;background:var(--accent-weak);color:var(--accent);font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.seq .a{font-family:var(--mono);font-size:.74rem;color:var(--muted)}
+ul.b{margin:.5em 0;padding-left:1.1em}ul.b li{margin:.3em 0;font-size:.86rem}
+pre{margin:10px 0 0;padding:12px;overflow:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;font-family:var(--mono);font-size:.74rem;line-height:1.5}
+.note{font-size:.82rem;color:var(--muted);border-left:3px solid var(--warn);padding:6px 0 6px 12px;margin:12px 0;background:linear-gradient(90deg,var(--surface-2),transparent)}
+.budget{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:.82rem;margin-top:6px}
+.budget .v{font-family:var(--mono);text-align:right;color:var(--muted)}
+.budget .tot{font-weight:700;border-top:1px solid var(--border);padding-top:4px}.budget .tot .v{color:var(--fg)}
+footer{color:var(--muted);font-size:.76rem;border-top:1px solid var(--border);margin-top:30px;padding:16px 0 44px}
+@media (max-width:620px){.toggle{float:none;display:block;margin-bottom:8px}}
+</style>
+
+<header><div class="wrap">
+  <button class="toggle" id="theme" type="button">◐ Giao diện</button>
+  <h1>Cơ chế truyền Audio &amp; Ảnh</h1>
+  <div class="sub">Ống nghe (observation.audio) &amp; Siêu âm (imaging.study) — end-to-end theo <span class="mono">contract v2.1</span></div>
+</div></header>
+
+<main class="wrap">
+  <h2>Nguyên tắc: tách Control plane / Data plane</h2>
+  <div class="card">
+    <div class="flow">
+      <div class="node"><div class="t">Thiết bị</div><div class="d">ống nghe / đầu dò US</div></div>
+      <div class="arrow">→</div>
+      <div class="node ac"><div class="t">Gateway → MQTT</div><div class="d">control plane: chỉ metadata + URL tham chiếu</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="t">Cloud / PIH</div><div class="d">tải/stream dữ liệu khi cần</div></div>
+    </div>
+    <div class="lane data" style="margin-top:10px"><div class="h">Data plane (lớn): âm thanh/ảnh đi RIÊNG — object storage / PACS / WebRTC</div></div>
+    <p class="note">Số liệu: cine siêu âm 30×800×600×2B ≈ <b>28 MB</b>; bản ghi tim 15s/8k/16-bit ≈ <b>240 KB</b>.
+      Nhồi base64 vào MQTT phình <b>+33%</b>, vượt <span class="ic">message_size_limit</span>, nghẽn hàng đợi vitals/alarm.
+      → dữ liệu lớn đi data plane, MQTT chỉ mang tham chiếu (~1.5 KB).</p>
+  </div>
+
+  <h2>Ống nghe điện tử <span class="tag audio">observation.audio</span></h2>
+
+  <h3>1 · Chuỗi thu tín hiệu (dưới mạch)</h3>
+  <div class="card"><div class="flow">
+    <div class="node"><div class="t">Cảm biến</div><div class="d">piezo / MEMS mic</div></div><div class="arrow">→</div>
+    <div class="node"><div class="t">AFE</div><div class="d">khuếch đại + anti-alias LPF</div></div><div class="arrow">→</div>
+    <div class="node"><div class="t">ADC</div><div class="d">≥16-bit · fs≥4kHz</div></div><div class="arrow">→</div>
+    <div class="node aud"><div class="t">Firmware</div><div class="d">PCM RAW · không lọc/nén</div></div>
+  </div></div>
+
+  <h3>2a · LIVE — nghe trực tiếp (ưu tiên độ trễ, WebRTC)</h3>
+  <div class="card">
+    <div class="lane au"><div class="h">mic → capture → [Opus] → RTP → SRTP → ICE/STUN/TURN → SFU → bác sĩ (jitter buffer → giải mã)</div></div>
+    <div class="budget">
+      <span>Capture + đóng gói</span><span class="v">10–20 ms</span>
+      <span>Mã hoá Opus</span><span class="v">5–20 ms</span>
+      <span>Mạng (RTT/2)</span><span class="v">30–120 ms</span>
+      <span>Jitter buffer</span><span class="v">20–60 ms</span>
+      <span class="tot">Tổng độ trễ mục tiêu</span><span class="v tot">~150–250 ms</span>
+    </div>
+    <ul class="b"><li>RTP/UDP + mã hoá <b>SRTP</b>; khoá trao đổi <b>DTLS-SRTP</b>; xuyên NAT bằng <b>ICE/STUN/TURN</b>.</li>
+      <li>MQTT chỉ mang <span class="ic">live.endpoint</span> để bác sĩ bấm "nghe". Live KHÔNG phải bản lưu chẩn đoán.</li></ul>
+  </div>
+
+  <h3>2b · RECORD — lưu hồ sơ (ưu tiên chất lượng, lossless)</h3>
+  <div class="card">
+    <div class="flow">
+      <div class="node"><div class="t">PCM raw</div><div class="d">từ ADC</div></div><div class="arrow">→</div>
+      <div class="node aud"><div class="t">WAV / FLAC lossless</div><div class="d">bit-exact</div></div><div class="arrow">→</div>
+      <div class="node"><div class="t">sha256</div><div class="d">toàn vẹn</div></div><div class="arrow">→</div>
+      <div class="node"><div class="t">HTTP PUT → S3</div><div class="d">presigned, TLS</div></div>
+    </div>
+    <ul class="b">
+      <li><b>WAV</b>: header 44B + PCM thô (vd 12s/8k/16-bit = <span class="ic">192,044 B</span>).</li>
+      <li><b>FLAC</b> lossless: thực đo <span class="ic">192,044 → 139,337 B (−27.4%)</span>, giải mã khớp <b>bit-exact</b>.</li>
+      <li><b>Không</b> MP3/AAC/Opus cho bản lưu — lossy/lọc sai xoá mất murmur, ran, wheeze.</li>
+      <li>File lớn/mạng yếu: <b>multipart + resume</b>; mất mạng: store-and-forward, publish <b>sau khi</b> có URL.</li>
+    </ul>
+  </div>
+
+  <h3>3 · Bản tin & trình tự</h3>
+  <div class="card">
+    <div class="scroll"><table>
+      <tr><th>Trường (payload)</th><th>Ý nghĩa</th></tr>
+      <tr><td><code>recording.format/codec</code></td><td>flac / wav · codec tương ứng</td></tr>
+      <tr><td><code>recording.lossless</code></td><td><b>true</b> cho bản lưu (test kiểm tra)</td></tr>
+      <tr><td><code>acquisition.body_site / filter_mode</code></td><td>vị trí nghe · <b>raw</b> (chưa lọc)</td></tr>
+      <tr><td><code>storage.url / sha256 / size_bytes</code></td><td>nơi TẢI file · kiểm toàn vẹn · khớp file thật</td></tr>
+      <tr><td><code>live.protocol / endpoint / latency_target_ms</code></td><td>đường nghe trực tiếp (webrtc)</td></tr>
+    </table></div>
+    <ol class="seq">
+      <li>Thiết bị → Gateway: PCM raw <span class="a">USB/BLE/WiFi</span></li>
+      <li>Gateway: ghi WAV/FLAC lossless + sha256</li>
+      <li>Gateway → S3: HTTP PUT file <span class="a">presigned, TLS</span> → URL</li>
+      <li>Gateway → Broker: PUBLISH observation.audio <span class="a">metadata + url, QoS1</span></li>
+      <li>Cloud (lazy): GET url + verify sha256 → phát/phân tích trên bản sao</li>
+    </ol>
+  </div>
+
+  <h2>Siêu âm <span class="tag imaging">imaging.study</span></h2>
+
+  <h3>1 · Vật lý & hai kịch bản phần cứng</h3>
+  <div class="card">
+    <p class="lead">Đầu dò áp điện phát/thu sóng; đo <b>thời gian về</b> (độ sâu) + <b>cường độ</b> (độ sáng) → ảnh <b>B-mode</b> 2D; chuỗi khung = <b>cine</b>.</p>
+    <div class="lane data"><div class="h">3A — Máy US thương mại (tự xuất DICOM)</div>
+      <div class="flow"><div class="node im"><div class="t">Máy US</div><div class="d">DICOM</div></div><div class="arrow">→</div>
+        <div class="node"><div class="t">Gateway relay</div><div class="d">C-STORE SCP</div></div><div class="arrow">→</div>
+        <div class="node im"><div class="t">STOW-RS → PACS</div><div class="d">lấy StudyUID</div></div></div></div>
+    <div class="lane data"><div class="h">3B — Đầu dò chỉ xuất RAW pixel</div>
+      <div class="flow"><div class="node"><div class="t">Đầu dò</div><div class="d">raw pixel + metadata</div></div><div class="arrow">→</div>
+        <div class="node"><div class="t">Bulk TCP/HTTP/WS</div><div class="d">checksum + resume · KHÔNG MQTT</div></div><div class="arrow">→</div>
+        <div class="node im"><div class="t">Gateway</div><div class="d">ghép → DICOM (pydicom)</div></div></div></div>
+  </div>
+
+  <h3>2 · Thoả thuận raw pixel (bắt buộc) & gói DICOM</h3>
+  <div class="card">
+    <div class="scroll"><table>
+      <tr><th>Hạng mục</th><th>Quy ước</th></tr>
+      <tr><td>pixel_format</td><td><code>gray8</code> (1B) / <code>gray16</code> LE (2B)</td></tr>
+      <tr><td>Bố cục</td><td>row-major, gốc trên-trái, <code>width×height</code> cố định</td></tr>
+      <tr><td>Thứ tự frame</td><td>liên tiếp theo <code>frame_index</code> tăng dần</td></tr>
+      <tr><td>Toàn vẹn</td><td><code>len == w×h×bytes×frames</code> + sha256</td></tr>
+    </table></div>
+<pre>ds.SOPClassUID  = "1.2.840.10008.5.1.4.1.1.6.1"   # US Image Storage
+ds.Modality     = "US" ; ds.PhotometricInterpretation = "MONOCHROME2"
+ds.Rows, ds.Columns = h, w ; ds.NumberOfFrames = len(frames)   # multi-frame = cine
+ds.BitsAllocated/Stored = 8/16 ; ds.PixelData = &lt;khung nối tiếp&gt;
+# + Study/Series/SOP InstanceUID (từ OID gốc) + TransferSyntax (Explicit VR LE / JPEG / HEVC)</pre>
+  </div>
+
+  <h3>3 · STOW-RS + bản tin + trình tự</h3>
+  <div class="card">
+<pre>POST /dicom-web/studies   Content-Type: multipart/related; type="application/dicom"
+Authorization: Bearer &lt;token&gt;   (hoặc mTLS)
+--XXXX  →  &lt;bytes DICOM instance&gt;  →  --XXXX--      ⇒  200 + StudyInstanceUID</pre>
+    <div class="scroll"><table>
+      <tr><th>Trường imaging.study</th><th>Ý nghĩa</th></tr>
+      <tr><td><code>study.study_instance_uid</code></td><td>định danh study (không pixel)</td></tr>
+      <tr><td><code>storage.wado_rs_study</code></td><td>URL <b>LẤY</b> ảnh (WADO-RS)</td></tr>
+      <tr><td><code>storage.stow_rs / thumbnail_url</code></td><td>nơi đã lưu · xem nhanh</td></tr>
+      <tr><td><code>storage.transfer_syntax</code></td><td>JPEG Baseline / JPEG2000 / HEVC…</td></tr>
+    </table></div>
+    <ol class="seq">
+      <li>Máy US/đầu dò → Gateway: DICOM (C-STORE) hoặc raw pixel (bulk)</li>
+      <li>Gateway: (nếu raw) ghép khung → đóng gói DICOM</li>
+      <li>Gateway → PACS: STOW-RS <span class="a">multipart/related, HTTPS</span> → StudyUID</li>
+      <li>Gateway → Broker: PUBLISH imaging.study <span class="a">uid + wado_rs_study, QoS1</span></li>
+      <li>Cloud (lazy): WADO-RS GET → OHIF/Cornerstone render cine</li>
+    </ol>
+  </div>
+
+  <h2>So sánh data plane</h2>
+  <div class="card scroll"><table>
+    <tr><th>Cách</th><th>Giao thức</th><th>Khi nào</th></tr>
+    <tr><td>Object storage + presigned</td><td>HTTPS</td><td>Audio, ảnh/clip tham khảo</td></tr>
+    <tr><td>DICOMweb STOW/WADO-RS</td><td>HTTPS</td><td>Ảnh vào PIH/bệnh án (khuyến nghị)</td></tr>
+    <tr><td>DICOM C-STORE (DIMSE)</td><td>TCP:104</td><td>Máy US ↔ PACS trong LAN</td></tr>
+    <tr><td>WebRTC/RTP (SRTP)</td><td>UDP</td><td><b>Audio LIVE</b> độ trễ thấp</td></tr>
+    <tr><td>❌ base64 trong MQTT</td><td>MQTT</td><td><b>Không dùng</b> — phình, nghẽn broker</td></tr>
+  </table></div>
+
+  <footer>Chi tiết đầy đủ (byte-level, tình huống biên): <span class="mono">docs/CO_CHE_TRUYEN.md</span> ·
+    thiết kế: <span class="mono">AUDIO_DESIGN.md</span>, <span class="mono">IMAGING_DESIGN.md</span> ·
+    kết nối broker để publish: <span class="mono">KET_NOI_BROKER.md</span>.</footer>
+</main>
+<script>
+"use strict";
+(function(){var r=document.documentElement,b=document.getElementById("theme");
+ try{var s=localStorage.getItem("pvl-cc");if(s)r.setAttribute("data-theme",s);}catch(e){}
+ b.addEventListener("click",function(){var c=r.getAttribute("data-theme"),pd=matchMedia("(prefers-color-scheme:dark)").matches;
+   var n=(c==="dark"||(!c&&pd))?"light":"dark";r.setAttribute("data-theme",n);
+   try{localStorage.setItem("pvl-cc",n);}catch(e){}});})();
+</script>

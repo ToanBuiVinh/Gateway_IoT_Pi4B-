@@ -56,7 +56,7 @@ pavalife-gateway/
 ├─ schema/device_data_contract_v2_1.schema.json   # JSON Schema 2020-12
 ├─ gateway/ registry.py · contract.py · validator.py · publisher.py
 ├─ pvl_send.py        # CLI gửi bản tin (vitals/lab/status)
-├─ tools/ gen_samples.py · gen_viewer.py · pvl_subscribe.py · web_viewer.py (xem HTML live)
+├─ tools/ gen_samples.py · gen_viewer.py · pvl_subscribe.py · web_viewer.py · broker_check.py (chẩn đoán broker)
 ├─ samples/*.json     # 9 bản tin mẫu (đã sinh)
 ├─ viewer/ index.html · gen_live_dashboard.py → live_dashboard.html (đồ thị + nghe tim + cine siêu âm)
 └─ tests/test_contract.py
@@ -94,9 +94,11 @@ python pvl_send.py all                                     # tất cả bản ti
 python pvl_send.py all --local --publish                   # gửi tất cả lên broker cục bộ
 ```
 
-> 📘 **Báo cáo tham khảo** (cách chạy + cơ chế ống nghe/siêu âm + kết nối broker ngoài):
-> [`docs/BAO_CAO_v2.1.md`](docs/BAO_CAO_v2.1.md). Kết nối **broker bên ngoài**:
-> [`docs/EXTERNAL_BROKER.md`](docs/EXTERNAL_BROKER.md).
+> 📘 **Báo cáo tham khảo:** tổng quan [`docs/BAO_CAO_v2.1.md`](docs/BAO_CAO_v2.1.md) ·
+> **cơ chế gửi audio/ảnh chi tiết** [`docs/CO_CHE_TRUYEN.md`](docs/CO_CHE_TRUYEN.md) ·
+> **runbook kết nối broker khác** [`docs/KET_NOI_BROKER.md`](docs/KET_NOI_BROKER.md)
+> (chạy `python tools/broker_check.py …` để chẩn đoán kết nối broker) ·
+> bản ngắn [`docs/EXTERNAL_BROKER.md`](docs/EXTERNAL_BROKER.md).
 
 ### ⚡ Một cú click: publish + xem dữ liệu trên web (Windows)
 Double-click **`publish_and_view.bat`** — tự bật broker (mini_broker), bật web viewer,
