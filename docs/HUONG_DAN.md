@@ -189,11 +189,8 @@ Dữ liệu gửi bù sau khi mất mạng sẽ có thêm cờ `"buffered": true
 ## 9. Chạy nền tự động (systemd)
 
 ```bash
-# Giả sử dự án đặt tại /opt/iot-gateway (đổi cho đúng đường dẫn của bạn)
-sudo cp systemd/iot-gateway.service /etc/systemd/system/
-sudo sed -i "s#/opt/iot-gateway#$(pwd)#g" /etc/systemd/system/iot-gateway.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now iot-gateway
+# Tự điền user + đường dẫn thư mục hiện tại vào service rồi bật (Pi 4B lẫn Pi 5)
+bash scripts/install_service.sh
 
 # Theo dõi log realtime
 journalctl -u iot-gateway -f

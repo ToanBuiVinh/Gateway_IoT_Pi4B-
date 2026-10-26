@@ -1,6 +1,6 @@
-# IoT Gateway - Raspberry Pi 4B
+# IoT Gateway - Raspberry Pi 4B / 5
 # Cài đặt: pip install -r requirements.txt
 
 paho-mqtt==1.6.1        # MQTT client (local subscribe + cloud publish)
-PyYAML==6.0.1           # Đọc file cấu hình YAML
+PyYAML==6.0.2           # Đọc file cấu hình YAML (>=6.0.2 có wheel cho Python 3.13 - Pi 5 OS mới)
 # Lưu ý: pipeline dùng asyncio + sqlite3 (thư viện chuẩn), không cần thêm gói.

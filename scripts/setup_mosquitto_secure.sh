@@ -7,6 +7,9 @@
 #   ENABLE_TLS=1        bật listener TLS 8883 (cần chạy gen_certs.sh trước)
 #   GATEWAY_PASS=...     mật khẩu tài khoản gateway (mặc định sinh ngẫu nhiên)
 #   NODE_PASS_PREFIX=... tiền tố mật khẩu node (mặc định: sinh ngẫu nhiên mỗi node)
+#   LISTEN_ADDR=...      địa chỉ nghe cổng 1883. Mặc định TRỐNG = mọi card mạng
+#                        (ESP32 trong LAN kết nối được). Đặt 127.0.0.1 nếu node
+#                        chỉ dùng TLS 8883.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,6 +18,8 @@ ACL_FILE=/etc/mosquitto/acl
 CONF=/etc/mosquitto/conf.d/gateway-secure.conf
 CRED_OUT="$REPO_DIR/mqtt_credentials.txt"   # đã .gitignore
 NODES=(node-01 node-02 node-03 node-04 node-05 node-06 node-07 node-08 node-09 node-10)
+
+LISTEN_ADDR="${LISTEN_ADDR:-}"
 
 echo ">> Cai Mosquitto (neu chua co)..."
 sudo apt-get update && sudo apt-get install -y mosquitto mosquitto-clients openssl
@@ -60,6 +65,15 @@ pattern read  iot/cmd/%u
 EOF
 
 # 3) Cấu hình broker --------------------------------------------------------
+# Bản nhanh (setup_mosquitto.sh) cũng mở listener 1883 + allow_anonymous true.
+# Để lại sẽ trùng cổng (Mosquitto không chạy) hoặc cho phép đăng nhập ẩn danh
+# -> sao lưu rồi xoá.
+QUICK_CONF=/etc/mosquitto/conf.d/gateway.conf
+if [[ -f "$QUICK_CONF" ]]; then
+  echo ">> Xoa cau hinh ban nhanh $QUICK_CONF (sao luu: ${QUICK_CONF}.bak)"
+  sudo mv "$QUICK_CONF" "${QUICK_CONF}.bak"
+fi
+
 echo ">> Ghi cau hinh: $CONF"
 {
   echo "# --- Bao mat co ban ---"
@@ -76,8 +90,8 @@ echo ">> Ghi cau hinh: $CONF"
   echo "max_queued_messages 100       # hang doi toi da moi client (offline)"
   echo "max_keepalive 120             # tran keepalive client yeu cau"
   echo ""
-  echo "# Listener khong TLS (LAN tin cay) - bo neu chi dung TLS"
-  echo "listener 1883 127.0.0.1"
+  echo "# Listener khong TLS (LAN tin cay, van bat buoc user/pass + ACL)"
+  echo "listener 1883${LISTEN_ADDR:+ $LISTEN_ADDR}"
 } | sudo tee "$CONF" >/dev/null
 
 if [[ "${ENABLE_TLS:-0}" == "1" ]]; then

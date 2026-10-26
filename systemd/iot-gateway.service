@@ -1,11 +1,11 @@
 [Unit]
-Description=IoT Gateway (Raspberry Pi 4B) - quan ly 10 node MQTT
+Description=IoT Gateway (Raspberry Pi 4B/5) - quan ly 10 node MQTT
 After=network-online.target mosquitto.service
 Wants=network-online.target
 
 [Service]
 Type=simple
-# Doi user/duong dan cho dung may cua ban (mac dinh Pi la user "pi").
+# File MAU: user + duong dan duoc scripts/install_service.sh tu dien (Pi 5 khong co user "pi").
 User=pi
 WorkingDirectory=/opt/iot-gateway
 # Bảo mật: nạp mật khẩu MQTT từ file bí mật (chmod 600), KHÔNG ghi trong unit này.

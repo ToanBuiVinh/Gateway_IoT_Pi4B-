@@ -129,7 +129,9 @@ EnvironmentFile=/etc/iot-gateway/secrets.env   # chmod 600, root
 - [ ] Khoá riêng `*.key` quyền 600, không nằm trong Git.
 - [ ] Đổi mật khẩu định kỳ; cân nhắc mTLS cho các node quan trọng.
 - [ ] Firewall: chỉ mở cổng MQTT cần thiết; broker cục bộ nên bind `127.0.0.1`
-      nếu gateway và broker cùng máy.
+      nếu gateway và broker cùng máy **và node chỉ vào qua TLS 8883**
+      (`LISTEN_ADDR=127.0.0.1 ENABLE_TLS=1 bash scripts/setup_mosquitto_secure.sh`).
+      Mặc định script mở 1883 cho cả LAN để ESP32 kết nối được.
 
 ---
 

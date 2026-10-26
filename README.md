@@ -45,6 +45,9 @@ có retry khi mất mạng.
 > [`docs/LUONG_XU_LY.md`](docs/LUONG_XU_LY.md)
 
 ## Bắt đầu nhanh (trên Raspberry Pi 4B)
+> 🆕 Dùng **Raspberry Pi 5** / thẻ nhớ trống? Làm theo
+> [`docs/HUONG_DAN_PI5.md`](docs/HUONG_DAN_PI5.md) (cài OS → broker → gateway → 10 ESP32 → chạy nền).
+
 ```bash
 # 1) Cài Mosquitto broker
 bash scripts/setup_mosquitto.sh
@@ -82,6 +85,7 @@ firmware/esp32_node/     # firmware Arduino mẫu cho node ESP32
 scripts/                 # cài đặt, cấu hình broker, giả lập node, test pipeline
 systemd/                 # service chạy nền (restart 10s)
 docs/HUONG_DAN.md        # HƯỚNG DẪN CHI TIẾT (cài đặt, phần cứng, cloud)
+docs/HUONG_DAN_PI5.md    # HƯỚNG DẪN A–Z cho Raspberry Pi 5 (từ thẻ nhớ trống)
 docs/LUONG_XU_LY.md      # phân tích kiến trúc & logic xử lý (đặc tả -> code)
 docs/BAO_MAT.md          # thiết kế & hướng dẫn bảo mật MQTT (TLS/auth/ACL/secrets)
 ```

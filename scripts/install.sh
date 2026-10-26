@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cai dat Gateway IoT tren Raspberry Pi 4B
+# Cai dat Gateway IoT tren Raspberry Pi 4B / 5
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,6 +27,4 @@ echo "   source .venv/bin/activate"
 echo "   python -m src.main"
 echo ""
 echo ">> De chay nen (tu dong khoi dong cung Pi), cai systemd service:"
-echo "   sudo cp systemd/iot-gateway.service /etc/systemd/system/"
-echo "   sudo sed -i \"s#/opt/iot-gateway#$APP_DIR#g\" /etc/systemd/system/iot-gateway.service"
-echo "   sudo systemctl daemon-reload && sudo systemctl enable --now iot-gateway"
+echo "   bash scripts/install_service.sh   (tu dien user + duong dan)"
