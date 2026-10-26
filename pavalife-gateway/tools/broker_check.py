@@ -190,7 +190,7 @@ def step_mqtt(cfg, args, timeout):
 
 def main():
     ap = argparse.ArgumentParser(description="Kiểm tra kết nối broker MQTT theo từng bước.")
-    ap.add_argument("--broker", default="mqtt://localhost:1883")
+    ap.add_argument("--broker", default=None, help="mac dinh = registry.BROKER_URL")
     ap.add_argument("--mqtt-version", choices=["5", "311"], default="5")
     ap.add_argument("--username", default="")
     ap.add_argument("--password", default="")
@@ -199,6 +199,18 @@ def main():
     ap.add_argument("--client-id", default="")
     ap.add_argument("--timeout", type=float, default=10.0)
     args = ap.parse_args()
+
+    # Nhanh PavaLife: mac dinh dung broker + thong tin dang nhap trong registry
+    try:
+        from gateway import registry as _reg
+        if not args.broker:
+            args.broker = getattr(_reg, "BROKER_URL", "mqtt://localhost:1883")
+        if not args.username:
+            args.username = getattr(_reg, "BROKER_USERNAME", "")
+            args.password = args.password or getattr(_reg, "BROKER_PASSWORD", "")
+    except Exception:
+        if not args.broker:
+            args.broker = "mqtt://localhost:1883"
 
     cfg = parse(args.broker)
     print("=" * 62)

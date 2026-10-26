@@ -40,6 +40,12 @@ class PavaLifePublisher:
                  mqtt_version: str = "5") -> None:
         import paho.mqtt.client as mqtt
 
+        # Nhanh PavaLife: dung thong tin dang nhap mac dinh trong registry
+        # khi caller khong truyen username/password.
+        if not username:
+            username = getattr(reg, "BROKER_USERNAME", "")
+            password = password or getattr(reg, "BROKER_PASSWORD", "")
+
         self._host, self._port, self._path, self._ws, self._tls = _parse(broker_url)
         transport = "websockets" if self._ws else "tcp"
         proto = mqtt.MQTTv311 if str(mqtt_version) in ("311", "3.1.1", "v311") else mqtt.MQTTv5

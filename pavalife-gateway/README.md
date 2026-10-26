@@ -1,5 +1,16 @@
 # PavaLife — Device Data Contract v2.1 (6 thiết bị)
 
+> ### 🛰️ Nhánh `Gateway_IoT_PavaLife` — bắn dữ liệu lên SERVER THẬT
+> Nhánh này cấu hình sẵn gửi lên **`wss://iot-check.pavalife.com:443/mqtt`** (MQTT 5.0 over WSS),
+> user `robotteam` (xem `gateway/registry.py`). Gửi thật chỉ cần **bỏ `--local`**:
+> ```bash
+> python pvl_send.py all --publish          # -> wss://iot-check.pavalife.com (server thật)
+> python tools/broker_check.py              # chẩn đoán kết nối server (dùng creds sẵn)
+> ```
+> Vẫn test cục bộ được bằng `--local` (xem bên dưới). ⚠️ **Mật khẩu được hardcode trong
+> `gateway/registry.py`** theo yêu cầu → nằm trong git history; đổi mật khẩu nếu lộ, hoặc
+> chuyển sang ENV/file gitignored. Nhánh `claude/iot-gateway-10-nodes-k40vn3` giữ cấu hình test cục bộ.
+
 Hiện thực **hợp đồng dữ liệu PavaLife v2.1**: 6 thiết bị y tế → Gateway → Cloud, bản
 tin JSON chuẩn **MQTT 5.0 over WSS**, kiểm tra bằng **JSON Schema 2020-12**. Sinh bản
 tin mẫu, validate, và một dashboard xem trực quan.
