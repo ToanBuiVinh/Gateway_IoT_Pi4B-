@@ -49,7 +49,11 @@ class PavaLifePublisher:
         self._host, self._port, self._path, self._ws, self._tls = _parse(broker_url)
         transport = "websockets" if self._ws else "tcp"
         proto = mqtt.MQTTv311 if str(mqtt_version) in ("311", "3.1.1", "v311") else mqtt.MQTTv5
-        cid = client_id or f"{reg.GATEWAY_ID}-pub"
+        self._proto, self._mqtt = proto, mqtt
+        # QUAN TRONG: nhieu broker cap credential gan voi DUNG client_id (= username/gateway_id).
+        # Dung client_id = registry.BROKER_CLIENT_ID (mac dinh = GATEWAY_ID), KHONG them "-pub",
+        # neu khong broker se tra "Not authorized" / "client identifier not valid".
+        cid = client_id or getattr(reg, "BROKER_CLIENT_ID", reg.GATEWAY_ID)
         # Tuong thich paho-mqtt 1.x va 2.x: 2.x bat buoc callback_api_version.
         if hasattr(mqtt, "CallbackAPIVersion"):
             self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
@@ -69,7 +73,10 @@ class PavaLifePublisher:
         log.info("Ket noi broker %s://%s:%s (MQTT 5.0, transport=%s)",
                  "wss" if (self._ws and self._tls) else ("ws" if self._ws else ("mqtts" if self._tls else "mqtt")),
                  self._host, self._port, "websockets" if self._ws else "tcp")
-        self._client.connect(self._host, self._port, keepalive=30)
+        if self._proto == self._mqtt.MQTTv5:
+            self._client.connect(self._host, self._port, keepalive=60, clean_start=True)
+        else:
+            self._client.connect(self._host, self._port, keepalive=60)
         self._client.loop_start()
 
     def publish(self, msg: Dict[str, Any], qos: int = 1) -> bool:

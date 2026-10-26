@@ -17,6 +17,8 @@ BROKER_URL = "wss://mqtt-hn-n1.pavalife.com:443/mqtt"   # MQTT 5.0 over WSS (ser
 # (publisher.py tu dung BROKER_USERNAME/PASSWORD khi khong truyen username/password)
 BROKER_USERNAME = "GW-ROBOT-DEV-001"
 BROKER_PASSWORD = "pki0_xSsDUtnNtPmJZgrvMW7lUGBRuov0vdxXGhnJ7kgzo1W"
+# client_id PHAI trung voi dinh danh broker cap (= username/gateway_id), KHONG them hau to.
+BROKER_CLIENT_ID = "GW-ROBOT-DEV-001"
 TOPIC_TPL = "pvl/v2/gw/{gateway_id}/up/{message_type}"  # rule #10: KHONG co patient_id
 
 LOINC = "http://loinc.org"

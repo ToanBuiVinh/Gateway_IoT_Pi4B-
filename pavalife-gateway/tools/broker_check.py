@@ -95,7 +95,13 @@ def step_tls(cfg, timeout, ca_cert, insecure):
 def make_client(cfg, args):
     import paho.mqtt.client as mqtt
     proto = mqtt.MQTTv311 if str(args.mqtt_version) in ("311", "3.1.1") else mqtt.MQTTv5
-    cid = args.client_id or "pvl-broker-check"
+    # Dung DUNG client_id broker cap (= username/gateway_id) de test dung dieu kien that.
+    try:
+        from gateway import registry as _reg
+        _def_cid = getattr(_reg, "BROKER_CLIENT_ID", None) or getattr(_reg, "GATEWAY_ID", "pvl-broker-check")
+    except Exception:
+        _def_cid = "pvl-broker-check"
+    cid = args.client_id or _def_cid
     transport = "websockets" if cfg["ws"] else "tcp"
     if hasattr(mqtt, "CallbackAPIVersion"):
         c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=cid, protocol=proto, transport=transport)
