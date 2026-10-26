@@ -10,7 +10,7 @@ GATEWAY_SW = "0.2.0"
 SOURCE_ID = "ROBOT-DEV-001"
 # --- Server dich (nhanh Gateway_IoT_PavaLife: ban du lieu len server that) ---
 # MQTT 5.0 over WSS toi server PavaLife iot-check.
-BROKER_URL = "wss://iot-check.pavalife.com:443/mqtt"    # MQTT 5.0 over WSS
+BROKER_URL = "wss://mqtt-hn-n1.pavalife.com:443/mqtt"   # MQTT 5.0 over WSS (server PavaLife)
 # CANH BAO: thong tin dang nhap duoc HARDCODE va COMMIT theo yeu cau. No nam
 # VINH VIEN trong git history cua nhanh nay. Neu repo cong khai / mat khau lo:
 # hay DOI mat khau va chuyen sang bien moi truong hoac file config gitignored.
