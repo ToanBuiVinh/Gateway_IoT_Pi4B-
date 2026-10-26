@@ -65,7 +65,7 @@ def step_tcp(cfg, timeout):
 
 
 def step_tls(cfg, timeout, ca_cert, insecure):
-    print("[2] TLS handshake + chứng chỉ")
+    print("[2] TLS handshake + chứng chỉ  (pre-check tùy chọn, KHÔNG chặn bước 3)")
     if not cfg["tls"]:
         info("bỏ qua (scheme không TLS: " + cfg["scheme"] + ")")
         return True
@@ -291,6 +291,8 @@ def main():
     ap.add_argument("--insecure", action="store_true")
     ap.add_argument("--client-id", default="")
     ap.add_argument("--ws-path", default=None, help="ep duong dan WebSocket (vd / hoac /ws)")
+    ap.add_argument("--skip-tls-check", action="store_true",
+                    help="bo qua pre-check TLS rieng (paho van tu bat tay TLS khi CONNECT)")
     ap.add_argument("--timeout", type=float, default=10.0)
     args = ap.parse_args()
 
@@ -315,15 +317,21 @@ def main():
           f"path={cfg['path']} tls={cfg['tls']} ws={cfg['ws']} mqtt={args.mqtt_version}")
     print("=" * 62)
 
-    results = []
-    results.append(step_tcp(cfg, args.timeout))
-    if results[-1]:
-        results.append(step_tls(cfg, args.timeout, args.ca_cert, args.insecure))
-    if all(results):
-        results.append(step_mqtt(cfg, args, args.timeout))
+    # Chi [1] TCP va [3] MQTT round-trip quyet dinh PASS/FAIL.
+    # [2] TLS chi la pre-check thong tin: KHONG chan buoc 3 (paho tu bat tay TLS).
+    tcp_ok = step_tcp(cfg, args.timeout)
+    mqtt_ok = False
+    if tcp_ok:
+        if args.skip_tls_check:
+            print("[2] TLS handshake + chứng chỉ")
+            info("bỏ qua (--skip-tls-check); paho sẽ tự bắt tay TLS khi CONNECT.")
+        elif step_tls(cfg, min(args.timeout, 6.0), args.ca_cert, args.insecure) is False:
+            info("→ Pre-check TLS lỗi/timeout nhưng KHÔNG chặn — vẫn thử CONNECT thật (bước 3).")
+            info("  (dùng --skip-tls-check để tắt hẳn pre-check này)")
+        mqtt_ok = step_mqtt(cfg, args, args.timeout)
 
     print("-" * 62)
-    passed = all(results) and len(results) >= 3
+    passed = tcp_ok and mqtt_ok
     print((" KẾT QUẢ: TẤT CẢ PASS — broker sẵn sàng dùng." if passed
            else " KẾT QUẢ: CÓ BƯỚC THẤT BẠI — xem gợi ý [→] ở trên."))
     return 0 if passed else 1
