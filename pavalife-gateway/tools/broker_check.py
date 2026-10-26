@@ -206,13 +206,25 @@ def step_mqtt(cfg, args, timeout):
         except Exception:
             pass
 
+    def on_disconnect(cl, u, *a):
+        # paho 1.x: (cl,u,rc); 2.x: (cl,u,flags,rc,props) -> lay phan tu ap chot
+        state["disc"] = a[-2] if len(a) >= 2 else (a[0] if a else None)
+
+    def _do_connect(client):
+        """connect khớp repo mẫu: MQTT5 -> clean_start=True, keepalive=60."""
+        if str(args.mqtt_version) in ("311", "3.1.1"):
+            client.connect(cfg["host"], cfg["port"], keepalive=60)
+        else:
+            client.connect(cfg["host"], cfg["port"], keepalive=60, clean_start=True)
+        client.loop_start()
+
     c, proto = make_client(cfg, args)
     c.on_connect = on_connect
     c.on_message = on_message
+    c.on_disconnect = on_disconnect
     connect_err = None
     try:
-        c.connect(cfg["host"], cfg["port"], keepalive=30)
-        c.loop_start()
+        _do_connect(c)
     except Exception as e:
         connect_err = e
 
@@ -237,9 +249,9 @@ def step_mqtt(cfg, args, timeout):
         c, proto = make_client(cfg, args)
         c.on_connect = on_connect
         c.on_message = on_message
+        c.on_disconnect = on_disconnect
         try:
-            c.connect(cfg["host"], cfg["port"], keepalive=30)
-            c.loop_start()
+            _do_connect(c)
         except Exception as e2:
             fail(f"vẫn lỗi với path {good} — {e2}")
             return False
@@ -250,9 +262,23 @@ def step_mqtt(cfg, args, timeout):
         time.sleep(0.05)
     time.sleep(0.3)
     if not state["connected"]:
-        fail(f"CONNECT bị từ chối (reason={state['rc']})")
-        info("→ sai username/password, client_id trùng/không được phép, hoặc TLS/ACL chặn.")
-        c.loop_stop(); c.disconnect()
+        disc = state.get("disc")
+        if state["rc"] is not None:
+            fail(f"CONNECT bị broker TỪ CHỐI — reason={state['rc']}")
+            info("→ reason 'Not authorized'/4/5/135 = sai MQTT_PASSWORD hoặc tài khoản/ACL.")
+        elif disc is not None:
+            fail(f"broker ĐÓNG kết nối trước khi gửi CONNACK (disconnect reason={disc})")
+            info("→ thường là SAI MẬT KHẨU/tài khoản chưa cấp phép (broker drop im lặng),")
+            info("  hoặc client_id không được phép. Kiểm tra lại MQTT_PASSWORD với PavaLife.")
+        else:
+            fail("CONNECT timeout — không nhận CONNACK (broker im lặng)")
+            info("→ nhiều broker drop khi sai auth: kiểm tra mật khẩu; hoặc mạng/proxy chặn giữa chừng.")
+        info("  Đối chiếu nhanh: chạy repo mẫu 'pavalife-mqtt-sender' (python pvl_send.py status --check)")
+        info("  với cùng mật khẩu — nếu repo mẫu cũng lỗi thì là mật khẩu/tài khoản, cần PavaLife xác nhận.")
+        try:
+            c.loop_stop(); c.disconnect()
+        except Exception:
+            pass
         return False
     ver = "3.1.1" if str(args.mqtt_version) in ("311", "3.1.1") else "5.0"
     ok(f"CONNECT thành công (MQTT {ver}) → subscribe {topic}")
