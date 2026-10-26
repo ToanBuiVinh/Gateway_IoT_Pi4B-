@@ -9,14 +9,14 @@ GATEWAY_ID = "GW-ROBOT-DEV-001"
 GATEWAY_SW = "0.2.0"
 SOURCE_ID = "ROBOT-DEV-001"
 # --- Server dich (nhanh Gateway_IoT_PavaLife: ban du lieu len server that) ---
-# MQTT 5.0 over WSS toi server PavaLife iot-check.
+# MQTT 5.0 over WSS toi server PavaLife (host mqtt-hn-n1, path /mqtt).
 BROKER_URL = "wss://mqtt-hn-n1.pavalife.com:443/mqtt"   # MQTT 5.0 over WSS (server PavaLife)
 # CANH BAO: thong tin dang nhap duoc HARDCODE va COMMIT theo yeu cau. No nam
 # VINH VIEN trong git history cua nhanh nay. Neu repo cong khai / mat khau lo:
 # hay DOI mat khau va chuyen sang bien moi truong hoac file config gitignored.
 # (publisher.py tu dung BROKER_USERNAME/PASSWORD khi khong truyen username/password)
-BROKER_USERNAME = "robotteam"
-BROKER_PASSWORD = "z81TPoYZZayEx-Xsbr5d-xMT-2rD_jlLVZfKIAvfaJU"
+BROKER_USERNAME = "GW-ROBOT-DEV-001"
+BROKER_PASSWORD = "pki0_xSsDUtnNtPmJZgrvMW7lUGBRuov0vdxXGhnJ7kgzo1W"
 TOPIC_TPL = "pvl/v2/gw/{gateway_id}/up/{message_type}"  # rule #10: KHONG co patient_id
 
 LOINC = "http://loinc.org"
