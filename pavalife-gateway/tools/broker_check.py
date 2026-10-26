@@ -18,6 +18,7 @@ Thoát code 0 nếu round-trip thành công, != 0 nếu có bước thất bại
 from __future__ import annotations
 
 import argparse
+import base64
 import datetime as dt
 import json
 import os
@@ -101,7 +102,8 @@ def make_client(cfg, args):
     else:
         c = mqtt.Client(client_id=cid, protocol=proto, transport=transport)
     if cfg["ws"]:
-        c.ws_set_options(path=cfg["path"])
+        headers = cfg.get("ws_headers")
+        c.ws_set_options(path=cfg["path"], headers=headers)
     if cfg["tls"]:
         c.tls_set(ca_certs=args.ca_cert)
         if args.insecure:
@@ -109,6 +111,68 @@ def make_client(cfg, args):
     if args.username:
         c.username_pw_set(args.username, args.password)
     return c, proto
+
+
+def _ws_upgrade_status(host, port, tls, path, ca_cert, insecure, auth=None, timeout=8):
+    """Gửi 1 yêu cầu nâng cấp WebSocket thô, trả (status_code, status_line)."""
+    key = base64.b64encode(os.urandom(16)).decode()
+    lines = [f"GET {path} HTTP/1.1", f"Host: {host}", "Upgrade: websocket",
+             "Connection: Upgrade", f"Sec-WebSocket-Key: {key}",
+             "Sec-WebSocket-Version: 13", "Sec-WebSocket-Protocol: mqtt"]
+    if auth:
+        lines.append("Authorization: Basic " + base64.b64encode(auth.encode()).decode())
+    req = ("\r\n".join(lines) + "\r\n\r\n").encode()
+    raw = socket.create_connection((host, port), timeout=timeout)
+    try:
+        if tls:
+            ctx = ssl.create_default_context(cafile=ca_cert) if ca_cert else ssl.create_default_context()
+            if insecure:
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+            s = ctx.wrap_socket(raw, server_hostname=host)
+        else:
+            s = raw
+        s.sendall(req)
+        resp = s.recv(2048).decode("latin-1", "replace")
+        line = resp.split("\r\n", 1)[0].strip()
+        parts = line.split(" ")
+        code = int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else None
+        return code, line
+    finally:
+        try:
+            raw.close()
+        except OSError:
+            pass
+
+
+def probe_ws_paths(cfg, args, timeout):
+    """Dò các đường dẫn WebSocket phổ biến. Trả (good_path, need_auth)."""
+    print("         ↪ Dò đường dẫn WebSocket (status 101 = đúng):")
+    cands = []
+    for p in [cfg["path"], "/mqtt", "/", "/ws", "/mqtt/", "/mqtt-ws", "/ws/mqtt", "/mqtt/v2"]:
+        if p and p not in cands:
+            cands.append(p)
+    auth = f"{args.username}:{args.password}" if args.username else None
+    good, need_auth = None, False
+    for p in cands:
+        try:
+            code, line = _ws_upgrade_status(cfg["host"], cfg["port"], cfg["tls"], p,
+                                            args.ca_cert, args.insecure, timeout=timeout)
+            tag = ""
+            if code == 101:
+                tag = "  ← 101 UPGRADED ✓"
+            elif code == 401 and auth:                      # cần Basic auth ở tầng WS?
+                code2, line2 = _ws_upgrade_status(cfg["host"], cfg["port"], cfg["tls"], p,
+                                                  args.ca_cert, args.insecure, auth=auth, timeout=timeout)
+                if code2 == 101:
+                    line, code, tag = line2, 101, "  ← 101 UPGRADED (cần Basic auth) ✓"
+            print(f"            {p:<10} {line}{tag}")
+            if code == 101 and good is None:
+                good = p
+                need_auth = "Basic auth" in tag
+        except Exception as e:
+            print(f"            {p:<10} lỗi: {e}")
+    return good, need_auth
 
 
 def step_mqtt(cfg, args, timeout):
@@ -139,12 +203,41 @@ def step_mqtt(cfg, args, timeout):
     c, proto = make_client(cfg, args)
     c.on_connect = on_connect
     c.on_message = on_message
+    connect_err = None
     try:
         c.connect(cfg["host"], cfg["port"], keepalive=30)
+        c.loop_start()
     except Exception as e:
-        fail(f"connect() ném lỗi — {e}")
-        return False
-    c.loop_start()
+        connect_err = e
+
+    # Lỗi nâng cấp WebSocket (handshake "not upgraded"/sai path) -> tự DÒ path
+    if connect_err is not None:
+        fail(f"connect() ném lỗi — {connect_err}")
+        if not cfg["ws"]:
+            return False
+        good, need_auth = probe_ws_paths(cfg, args, timeout)
+        if not good:
+            info("→ không path WebSocket nào trả 101. Hỏi bên vận hành đường dẫn WS đúng,")
+            info("  hoặc thử scheme khác (mqtts://host:8883 cho MQTT-over-TLS thuần).")
+            return False
+        info(f"→ TÌM THẤY path WebSocket: {good}" + ("  (cần Basic auth header)" if need_auth else ""))
+        info(f"  Sửa gateway/registry.py: BROKER_URL = \"wss://{cfg['host']}:{cfg['port']}{good}\"")
+        cfg = dict(cfg)
+        cfg["path"] = good
+        if need_auth:
+            cfg["ws_headers"] = {"Authorization": "Basic " +
+                                 base64.b64encode(f"{args.username}:{args.password}".encode()).decode()}
+        state.update({"connected": False, "rc": None, "got": False})
+        c, proto = make_client(cfg, args)
+        c.on_connect = on_connect
+        c.on_message = on_message
+        try:
+            c.connect(cfg["host"], cfg["port"], keepalive=30)
+            c.loop_start()
+        except Exception as e2:
+            fail(f"vẫn lỗi với path {good} — {e2}")
+            return False
+        ok(f"nâng cấp WebSocket OK với path {good}")
 
     t0 = time.time()
     while time.time() - t0 < timeout and not state["connected"] and state["rc"] is None:
@@ -197,6 +290,7 @@ def main():
     ap.add_argument("--ca-cert", default=None)
     ap.add_argument("--insecure", action="store_true")
     ap.add_argument("--client-id", default="")
+    ap.add_argument("--ws-path", default=None, help="ep duong dan WebSocket (vd / hoac /ws)")
     ap.add_argument("--timeout", type=float, default=10.0)
     args = ap.parse_args()
 
@@ -213,10 +307,12 @@ def main():
             args.broker = "mqtt://localhost:1883"
 
     cfg = parse(args.broker)
+    if args.ws_path:
+        cfg["path"] = args.ws_path if args.ws_path.startswith("/") else "/" + args.ws_path
     print("=" * 62)
     print(f" BROKER CHECK  {args.broker}")
     print(f"   scheme={cfg['scheme']} host={cfg['host']} port={cfg['port']} "
-          f"tls={cfg['tls']} ws={cfg['ws']} mqtt={args.mqtt_version}")
+          f"path={cfg['path']} tls={cfg['tls']} ws={cfg['ws']} mqtt={args.mqtt_version}")
     print("=" * 62)
 
     results = []
