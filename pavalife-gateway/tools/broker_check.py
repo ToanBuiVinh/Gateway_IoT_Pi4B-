@@ -281,9 +281,9 @@ def step_mqtt(cfg, args, timeout):
             pass
         return False
     ver = "3.1.1" if str(args.mqtt_version) in ("311", "3.1.1") else "5.0"
-    ok(f"CONNECT thành công (MQTT {ver}) → subscribe {topic}")
+    ok(f"CONNECT thành công (MQTT {ver}) → đăng nhập broker OK")
 
-    # publish device.status
+    # publish device.status (QoS 1 -> cho PUBACK tu broker)
     et = dt.datetime.now(dt.timezone(dt.timedelta(hours=7))).isoformat(timespec="milliseconds")
     msg = C.build_device_status(et) if hasattr(C, "build_device_status") else None
     if msg is None:
@@ -299,18 +299,20 @@ def step_mqtt(cfg, args, timeout):
         info(f"→ xin mở quyền publish topic: {reg.topic_for('device.status').rsplit('/',1)[0]}/#")
         c.loop_stop(); c.disconnect()
         return False
-    ok(f"publish device.status được broker xác nhận (QoS {pub.rc if hasattr(pub,'rc') else 1})")
+    ok(f"PUBLISH device.status THÀNH CÔNG (QoS 1, broker đã nhận) → {topic}")
 
+    # Tu nhan lai (round-trip) CHI LA tuy chon: gateway thuong KHONG duoc subscribe
+    # chinh topic up/ cua no (ACL toi thieu quyen) -> khong nhan lai la BINH THUONG.
     t0 = time.time()
-    while time.time() - t0 < timeout and not state["got"]:
+    while time.time() - t0 < timeout * 0.4 and not state["got"]:
         time.sleep(0.05)
     c.loop_stop(); c.disconnect()
     if state["got"]:
-        ok("ROUND-TRIP: tự nhận lại bản tin đã gửi → publish + subscribe đều hoạt động")
-        return True
-    fail("đã publish nhưng KHÔNG nhận lại được (subscribe/ACL subscribe có thể bị chặn)")
-    info(f"→ xin mở quyền subscribe topic: {topic}")
-    return False
+        info("(+) còn tự nhận lại được bản tin → broker cũng cho subscribe topic này.")
+    else:
+        info("(i) không tự nhận lại bản tin — BÌNH THƯỜNG: gateway chỉ được PUBLISH lên")
+        info("    nhánh up/, còn Cloud mới subscribe. Không ảnh hưởng việc gửi dữ liệu.")
+    return True   # PASS = đăng nhập + publish thành công (mục tiêu của gateway)
 
 
 def main():
