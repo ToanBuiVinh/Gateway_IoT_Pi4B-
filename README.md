@@ -47,6 +47,10 @@ có retry khi mất mạng.
 ## Bắt đầu nhanh (trên Raspberry Pi 4B)
 > 🆕 Dùng **Raspberry Pi 5** / thẻ nhớ trống? Làm theo
 > [`docs/HUONG_DAN_PI5.md`](docs/HUONG_DAN_PI5.md) (cài OS → broker → gateway → 10 ESP32 → chạy nền).
+>
+> ⚡ **Không cài được Mosquitto?** Dùng [`docs/CHAY_PI5_KHONG_MOSQUITTO.md`](docs/CHAY_PI5_KHONG_MOSQUITTO.md):
+> chạy demo 10 node bằng **mini_broker.py (thuần Python)** — `bash scripts/run_pi5_demo.sh` — và
+> gửi bản tin y tế **thẳng lên server PavaLife** qua `pavalife-gateway/pvl_send.py` (không cần broker local).
 
 ```bash
 # 1) Cài Mosquitto broker
