@@ -21,16 +21,30 @@ cd ~/gateway-app                      # thư mục đã clone repo
 git fetch origin
 git checkout Gateway_Pi_5_10_Devices
 git pull
-
-python3 -m pip install -r requirements.txt                    # cho gateway 10 node (src/)
-python3 -m pip install -r pavalife-gateway/requirements.txt    # cho bộ gửi PavaLife
 ```
-> Pi 5 OS mới dùng Python 3.13 — cả hai file đã pin bản có wheel cho 3.13.
+
+⚠️ **Pi OS mới chặn `pip` cài thẳng vào Python hệ thống** (lỗi `externally-managed-environment`,
+PEP 668). Phải cài trong **virtual environment (venv)**:
+```bash
+sudo apt install -y python3-venv python3-full     # nếu chưa có
+python3 -m venv .venv                             # tạo venv (1 lần)
+source .venv/bin/activate                         # BẬT venv (dấu nhắc có "(.venv)")
+pip install -r requirements.txt                   # gateway 10 node (src/)
+pip install -r pavalife-gateway/requirements.txt  # bộ gửi PavaLife
+```
+> Mỗi lần mở SSH mới để chạy, nhớ `source .venv/bin/activate` trước.
+> (Hoặc dùng sẵn script cài của repo: `bash scripts/install.sh` — nó tạo `.venv` + cài
+> `requirements.txt`; sau đó activate rồi cài thêm `pavalife-gateway/requirements.txt`.)
+>
+> Cách nhanh (KHÔNG khuyến nghị, có thể đụng gói OS): thêm `--break-system-packages` vào `pip install`.
+>
+> `scripts/run_pi5_demo.sh` **tự dùng `.venv/bin/python`** nếu có, nên Phần B chạy được kể cả khi chưa activate.
 
 ---
 
 ## PHẦN A — Gửi lên server PavaLife (không broker)
 
+> Nhớ **bật venv trước**: `source ~/gateway-app/.venv/bin/activate` (xem mục 0).
 ```bash
 cd ~/gateway-app/pavalife-gateway
 python3 tools/broker_check.py            # chẩn đoán kết nối server (user/pass/client_id đã cấu hình sẵn)

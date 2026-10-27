@@ -13,8 +13,23 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PY="python3"
-command -v "$PY" >/dev/null 2>&1 || { echo "[LOI] chua co python3"; exit 1; }
+# Ưu tiên python trong venv (.venv) nếu có — tránh lỗi PEP 668 externally-managed.
+if [ -x ".venv/bin/python" ]; then
+  PY=".venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+  PY="python3"
+else
+  echo "[LOI] chua co python3"; exit 1
+fi
+echo ">> Python: $PY"
+# Kiểm tra thư viện cần thiết (paho, yaml). Thiếu -> gợi ý tạo venv.
+"$PY" -c "import paho.mqtt.client, yaml" 2>/dev/null || {
+  echo "[LOI] thiếu thư viện (paho-mqtt/PyYAML). Tạo venv rồi cài:"
+  echo "      python3 -m venv .venv && source .venv/bin/activate"
+  echo "      pip install -r requirements.txt -r pavalife-gateway/requirements.txt"
+  echo "      (hoặc nhanh: pip install --break-system-packages -r requirements.txt)"
+  exit 1
+}
 
 # Nạp .env nếu có (biến bí mật). Với mini_broker thì không bắt buộc (bỏ qua auth).
 [ -f .env ] && { set -a; . ./.env; set +a; }
