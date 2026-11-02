@@ -47,7 +47,10 @@ def _base(message_type: str, event_time: str, sequence_no: int,
             "published_at": event_time,
             "clock_source": "ntp",
         },
-        "source": {"source_id": reg.SOURCE_ID, "source_type": source_type, "connection": "wifi"},
+        # source_type: uu tien reg.SOURCE_TYPE (khop dang ky server) -> tranh "Source type mismatch".
+        "source": {"source_id": reg.SOURCE_ID,
+                   "source_type": getattr(reg, "SOURCE_TYPE", None) or source_type,
+                   "connection": "wifi"},
     }
     if with_patient:
         msg["patient_context"] = _patient_context(event_time)

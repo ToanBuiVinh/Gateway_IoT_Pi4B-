@@ -64,11 +64,17 @@ def main() -> int:
             assert rec["format"] in ("wav", "flac"), f"{name}: dinh dang luu phai wav/flac"
             assert "storage" in msg["payload"] and msg["payload"]["storage"].get("url"), \
                 f"{name}: thieu tham chieu file am thanh"
-        # Rule #8: observation.lab phai co specimen + report + source_type lab_analyzer/lis
+        # Rule #8: observation.lab phai co specimen + report.
+        # source_type: bình thường lab_analyzer/lis; nhưng khi gateway dùng MỘT source
+        # chung (registry.SOURCE_TYPE, vd "robot" theo đăng ký server) thì chấp nhận giá trị đó.
         if mtype == "observation.lab":
             p = msg["payload"]
             assert "specimen" in p and "report" in p, f"{name}: lab thieu specimen/report"
-            assert msg["source"]["source_type"] in ("lab_analyzer", "lis")
+            allowed = ("lab_analyzer", "lis")
+            override = getattr(reg, "SOURCE_TYPE", None)
+            if override:
+                allowed = allowed + (override,)
+            assert msg["source"]["source_type"] in allowed
         # Canh bao nguong (khong phai loi)
         warns = validator.check_thresholds(msg)
 
