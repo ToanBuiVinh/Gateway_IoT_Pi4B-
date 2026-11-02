@@ -16,7 +16,7 @@
   },
   "source": {
     "source_id": "ROBOT-DEV-001",
-    "source_type": "robot_doctor",
+    "source_type": "robot",
     "connection": "wifi"
   },
   "patient_context": {

@@ -8,6 +8,11 @@ FACILITY_ID = "PVL-ROBOT-DEV"
 GATEWAY_ID = "GW-ROBOT-DEV-001"
 GATEWAY_SW = "0.2.0"
 SOURCE_ID = "ROBOT-DEV-001"
+# source_type PHAI khop voi dang ky tren server PavaLife (bang sources).
+# Server dang ky ROBOT-DEV-001 voi source_type = "robot" -> gui gia tri khac se
+# bi validator loai voi ly do "Source type mismatch". Doi 1 dong nay neu PavaLife
+# cap gia tri khac cho gateway Raspberry.
+SOURCE_TYPE = "robot"
 # --- Server dich (nhanh Gateway_IoT_PavaLife: ban du lieu len server that) ---
 # MQTT 5.0 over WSS toi server PavaLife (host mqtt-hn-n1, path /mqtt).
 BROKER_URL = "wss://mqtt-hn-n1.pavalife.com:443/mqtt"   # MQTT 5.0 over WSS (server PavaLife)

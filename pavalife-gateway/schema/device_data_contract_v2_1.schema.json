@@ -62,7 +62,7 @@
       "required": ["source_id", "source_type"],
       "properties": {
         "source_id": { "type": "string" },
-        "source_type": { "enum": ["robot_doctor", "lab_analyzer", "lis", "patient_monitor", "imaging_device", "auscultation_device", "other"] },
+        "source_type": { "enum": ["robot", "robot_doctor", "lab_analyzer", "lis", "patient_monitor", "imaging_device", "auscultation_device", "other"] },
         "connection": { "enum": ["ble", "ethernet", "wifi", "serial", "https", "vendor_api", "other"] }
       }
     },
